@@ -9,7 +9,7 @@ function PositionForm() {
     targetPrice: '',
     startDate: new Date(),
     targetDate: '',
-    timeframe: '1wk'
+    timeframe: ''
   });
 
   const handleChange = (e) => {

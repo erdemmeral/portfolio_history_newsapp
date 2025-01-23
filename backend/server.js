@@ -18,6 +18,7 @@ const positionSchema = new mongoose.Schema({
   entryDate: { type: Date, default: Date.now },
   targetDate: Date,
   timeframe: String,
+  timeLeft: { type: Number, default: 0 }, // New field for days left
   status: { 
     type: String, 
     enum: ['OPEN', 'CLOSED', 'PENDING'],
@@ -29,6 +30,16 @@ const positionSchema = new mongoose.Schema({
 
 // Pre-save middleware to calculate profit/loss and percentage change
 positionSchema.pre('save', function(next) {
+  // Calculate time left
+  if (this.entryDate && this.targetDate) {
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const timeDiff = this.targetDate.getTime() - new Date().getTime();
+    this.timeLeft = Math.ceil(timeDiff / millisecondsPerDay);
+  } else {
+    this.timeLeft = 0;
+  }
+
+
   if (this.entryPrice && this.currentPrice) {
     this.profitLoss = this.currentPrice - this.entryPrice;
     this.percentageChange = 
@@ -142,9 +153,9 @@ async function startServer() {
     app.post('/api/positions', async (req, res) => {
       try {
         const positionData = req.body;
-
+    
         // Validate required fields
-        const requiredFields = ['symbol', 'entryPrice', 'startDate', 'timeframe'];
+        const requiredFields = ['symbol', 'entryPrice', 'startDate', 'targetDate'];
         
         for (let field of requiredFields) {
           if (!positionData[field]) {
@@ -153,18 +164,18 @@ async function startServer() {
             });
           }
         }
-
+    
         // Create new position
         const newPosition = new Position({
           symbol: positionData.symbol,
           entryPrice: positionData.entryPrice,
           targetPrice: positionData.targetPrice || null,
-          startDate: positionData.startDate,
-          targetDate: positionData.targetDate || null,
-          timeframe: positionData.timeframe,
+          entryDate: positionData.startDate,
+          targetDate: positionData.targetDate,
+          timeframe: positionData.timeframe || '', // Keep timeframe for reference
           status: 'OPEN'
         });
-
+    
         // Fetch current price
         try {
           const priceData = await yahooFinance.quote(newPosition.symbol);
@@ -172,15 +183,15 @@ async function startServer() {
         } catch (priceError) {
           console.error(`Could not fetch current price for ${newPosition.symbol}:`, priceError);
         }
-
+    
         // Save position
         await newPosition.save();
-
+    
         res.status(201).json({
           message: 'Position added successfully',
           position: newPosition
         });
-
+    
       } catch (error) {
         console.error('Error adding position:', error);
         res.status(500).json({ 

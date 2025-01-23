@@ -133,7 +133,7 @@ function PortfolioList() {
             <th>Target Price</th>
             <th>Starting Date</th>
             <th>Target Date</th>
-            <th>Time Frame</th>
+            <th>Time Left</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -181,7 +181,16 @@ function PortfolioList() {
                     ? new Date(position.targetDate).toLocaleDateString() 
                     : 'N/A'}
                 </td>
-                <td>{position.timeframe}</td>
+                {positions.map(position => (
+                  <tr key={position._id}>
+                    {/* Other columns */}
+                    <td>
+                      {position.timeLeft > 0 
+                        ? `${position.timeLeft} days` 
+                        : 'Expired'}
+                    </td>
+                  </tr>
+                ))}
                 <td>{position.status}</td>
                 <td>
                   <div className="action-buttons">
