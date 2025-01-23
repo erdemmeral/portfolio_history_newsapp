@@ -439,44 +439,49 @@ async function startServer() {
           position => new Date(position.entryDate) >= startDate
         );
 
-        // Calculate cumulative returns with equal weighting
-        const returns = filteredPositions.map(position => ({
-          date: position.entryDate,
-          return: (position.currentPrice - position.entryPrice) / position.entryPrice
-        }));
-
         // Generate daily data points
         const dailyData = [];
         let currentDate = new Date(startDate);
         const endDate = new Date();
 
         while (currentDate <= endDate) {
-          const positionsUpToDate = returns.filter(
-            r => new Date(r.date) <= currentDate
+          // Get positions that were closed by this date
+          const positionsUpToDate = filteredPositions.filter(
+            position => new Date(position.entryDate) <= currentDate
           );
 
           if (positionsUpToDate.length > 0) {
-            // Calculate average return (equal weighting)
-            const avgReturn = positionsUpToDate.reduce(
-              (sum, pos) => sum + pos.return, 
+            // Calculate average percentage change (equal weighting)
+            const totalPercentageChange = positionsUpToDate.reduce(
+              (sum, position) => sum + position.percentageChange,
               0
-            ) / positionsUpToDate.length;
+            );
+            const avgPercentageChange = totalPercentageChange / positionsUpToDate.length;
+            
+            // Calculate ETF price (starting from $1.00)
+            const etfPrice = 1 + (avgPercentageChange / 100);
 
             dailyData.push({
               date: new Date(currentDate).toISOString().split('T')[0],
-              value: (1 + avgReturn) * 100 // Convert to index value starting at 100
+              value: etfPrice
+            });
+          } else {
+            // If no positions yet, use starting price
+            dailyData.push({
+              date: new Date(currentDate).toISOString().split('T')[0],
+              value: 1.00
             });
           }
 
           currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        // Add logging to debug
         console.log('Time Series Response:', {
           period,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          dataPoints: dailyData.length
+          dataPoints: dailyData.length,
+          finalValue: dailyData[dailyData.length - 1]?.value
         });
 
         res.json({

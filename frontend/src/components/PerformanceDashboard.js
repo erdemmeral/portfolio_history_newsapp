@@ -58,10 +58,15 @@ function PerformanceDashboard() {
   // Custom tooltip for the chart
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const value = payload[0].value;
+      const percentageChange = ((value - 1) * 100).toFixed(2);
+      const sign = percentageChange > 0 ? '+' : '';
+      
       return (
         <div className="custom-tooltip">
-          <p className="date">{label}</p>
-          <p className="value">Value: {payload[0].value.toFixed(2)}</p>
+          <p className="date">{new Date(label).toLocaleDateString()}</p>
+          <p className="value">Price: ${value.toFixed(2)}</p>
+          <p className="change">Return: {sign}{percentageChange}%</p>
         </div>
       );
     }
@@ -74,7 +79,7 @@ function PerformanceDashboard() {
 
   // Calculate the total return for the selected period
   const periodReturn = timeSeriesData.data.length > 1 
-    ? ((timeSeriesData.data[timeSeriesData.data.length - 1].value / 100) - 1) * 100
+    ? ((timeSeriesData.data[timeSeriesData.data.length - 1].value - 1) * 100)
     : 0;
 
   return (
@@ -114,8 +119,8 @@ function PerformanceDashboard() {
                 tickFormatter={(date) => new Date(date).toLocaleDateString()}
               />
               <YAxis 
-                domain={['dataMin - 5', 'dataMax + 5']}
-                tickFormatter={(value) => `${value.toFixed(0)}`}
+                domain={['auto', 'auto']}
+                tickFormatter={(value) => `$${value.toFixed(2)}`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line 
