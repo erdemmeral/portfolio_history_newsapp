@@ -15,8 +15,8 @@ const positionSchema = new mongoose.Schema({
   entryPrice: { type: Number, required: true },
   currentPrice: { type: Number, default: null },
   targetPrice: { type: Number, required: true },
-  entryDate: { type: Date, default: Date.now },
-  targetDate: Date,
+  entryDate: { type: Date, default: Date.now, required: true  },
+  targetDate: { type: Date, default: Date.now, required: true  },
   timeframe: String,
   timeLeft: { type: Number, default: 0 }, // New field for days left
   status: { 
@@ -155,7 +155,7 @@ async function startServer() {
         const positionData = req.body;
     
         // Validate required fields
-        const requiredFields = ['symbol', 'entryPrice', 'startDate', 'targetDate'];
+        const requiredFields = ['symbol', 'entryPrice', 'entryDate', 'targetDate'];
         
         for (let field of requiredFields) {
           if (!positionData[field]) {
@@ -170,9 +170,9 @@ async function startServer() {
           symbol: positionData.symbol,
           entryPrice: positionData.entryPrice,
           targetPrice: positionData.targetPrice || null,
-          entryDate: positionData.startDate,
-          targetDate: positionData.targetDate,
-          timeframe: positionData.timeframe || '', // Keep timeframe for reference
+          entryDate: new Date(positionData.entryDate), // Ensure proper Date object
+          targetDate: new Date(positionData.targetDate), // Ensure proper Date object
+          timeframe: positionData.timeframe || '',
           status: 'OPEN'
         });
     

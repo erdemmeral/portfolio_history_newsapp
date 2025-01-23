@@ -174,7 +174,7 @@ function PortfolioList() {
                     : 'N/A'}
                 </td>
                 <td>
-                  {new Date(position.startDate).toLocaleDateString()}
+                  {new Date(position.entryDate).toLocaleDateString()}
                 </td>
                 <td>
                   {position.targetDate 
