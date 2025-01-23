@@ -9,9 +9,6 @@ function Navigation() {
           <Link to="/">Portfolio</Link>
         </li>
         <li style={{ margin: '0 10px' }}>
-          <Link to="/add-position">Add Position</Link>
-        </li>
-        <li style={{ margin: '0 10px' }}>
           <Link to="/performance">Performance</Link>
         </li>
       </ul>

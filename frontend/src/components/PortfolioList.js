@@ -5,7 +5,6 @@ import './PortfolioList.css';
 
 function PortfolioList() {
   const [positions, setPositions] = useState([]);
-  const [cumulativeResults, setCumulativeResults] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Determine CSS class for percentage change
@@ -26,7 +25,7 @@ function PortfolioList() {
     try {
       // Fetch current portfolio
       const portfolioResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/portfolio');
-      const { positions: portfolioPositions, cumulativeResults: results } = portfolioResponse.data;
+      const { positions: portfolioPositions } = portfolioResponse.data;
       
       // Update each position with current price
       const updatedPositions = await Promise.all(
@@ -51,7 +50,6 @@ function PortfolioList() {
       );
 
       setPositions(updatedPositions);
-      setCumulativeResults(results);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching and updating portfolio:', error);
@@ -73,51 +71,7 @@ function PortfolioList() {
 
   return (
     <div className="portfolio-container">
-      <h2 className="portfolio-title">My Portfolio</h2>
-      
-      {/* Cumulative Results Section */}
-      {cumulativeResults && (
-        <div className="cumulative-results">
-          <h3>Portfolio Summary</h3>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <label>Total Positions:</label>
-              <span>{cumulativeResults.totalPositions}</span>
-            </div>
-            <div className="summary-item">
-              <label>Open Positions:</label>
-              <span>{cumulativeResults.openPositions}</span>
-            </div>
-            <div className="summary-item">
-              <label>Closed Positions:</label>
-              <span>{cumulativeResults.closedPositions}</span>
-            </div>
-            <div className="summary-item">
-              <label>Total Investment:</label>
-              <span>${cumulativeResults.totalInvestment.toFixed(2)}</span>
-            </div>
-            <div className="summary-item">
-              <label>Current Value:</label>
-              <span>${cumulativeResults.currentValue.toFixed(2)}</span>
-            </div>
-            <div className="summary-item">
-              <label>Total P/L:</label>
-              <span className={getPercentageChangeClass(cumulativeResults.totalProfitLoss)}>
-                ${cumulativeResults.totalProfitLoss.toFixed(2)}
-              </span>
-            </div>
-            <div className="summary-item">
-              <label>Total % Change:</label>
-              <span className={getPercentageChangeClass(cumulativeResults.totalPercentageChange)}>
-                {cumulativeResults.totalPercentageChange.toFixed(2)}%
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Individual Positions Table */}
-      <h3>Individual Positions</h3>
+      <h2 className="portfolio-title">Active Positions</h2>
       <table className="portfolio-table">
         <thead>
           <tr>
