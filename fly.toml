@@ -1,29 +1,22 @@
-# fly.toml app configuration file generated for portfolio-tracker-rough-dawn-5271 on 2025-01-23T12:04:15+03:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-#updates
-app = 'portfolio-tracker-rough-dawn-5271'
-primary_region = 'fra'
+app = "portfolio-tracker-rough-dawn-5271"
+primary_region = "fra"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
 
 [build]
 
 [deploy]
-  release_command = "sh -c 'npm install && cd frontend && npm install && npm run build'"
-
-[env]
-  NODE_ENV = 'production'
-  PORT = '3000'
+  release_command = "npm ci && cd frontend && npm ci && npm run build"
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 1
 
-[[vm]]
-  size = 'shared-cpu-1x'
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
+[machines]
+  size = "shared-cpu-1x"
+  memory = "1gb"  # Increased from 512mb

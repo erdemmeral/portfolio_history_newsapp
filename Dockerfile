@@ -1,28 +1,29 @@
 FROM node:18-alpine
 
-WORKDIR /app
+# Use non-root user
+USER node
+WORKDIR /home/node/app
 
-# Remove npm global update
-# RUN npm install -g npm@latest
+# Copy only necessary files
+COPY --chown=node:node package*.json ./
 
-# Copy root package.json and install root dependencies
-COPY package.json .
-RUN npm install
+# Install dependencies
+RUN npm ci --only=production
 
-# Copy backend and frontend code
-COPY backend ./backend
-COPY frontend ./frontend
+# Copy project files
+COPY --chown=node:node backend ./backend
+COPY --chown=node:node frontend ./frontend
 
 # Build frontend
-WORKDIR /app/frontend
-RUN npm install
+WORKDIR /home/node/app/frontend
+RUN npm ci
 RUN npm run build
 
-# Switch back to root
-WORKDIR /app
+# Back to root
+WORKDIR /home/node/app
 
 # Expose port
 EXPOSE 3000
 
-# Start backend with built frontend
+# Start backend
 CMD ["node", "backend/server.js"]
