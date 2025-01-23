@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './PerformanceDashboard.css';
 
 function PerformanceDashboard() {
   const [performance, setPerformance] = useState(null);
+  const [timeSeriesData, setTimeSeriesData] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('1m');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -14,30 +17,119 @@ function PerformanceDashboard() {
     return '';
   };
 
+  // Time periods for selection
+  const timePeriods = [
+    { label: '1D', value: '1d' },
+    { label: '1W', value: '1w' },
+    { label: '1M', value: '1m' },
+    { label: '6M', value: '6m' },
+    { label: '1Y', value: '1y' },
+    { label: 'YTD', value: 'ytd' },
+    { label: 'ALL', value: 'all' }
+  ];
+
+  // Fetch performance metrics and time series data
   useEffect(() => {
-    const fetchPerformance = async () => {
+    const fetchData = async () => {
       try {
-        const response = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/performance');
-        setPerformance(response.data);
+        setLoading(true);
+        
+        // Fetch overall performance metrics
+        const perfResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/performance');
+        setPerformance(perfResponse.data);
+
+        // Fetch time series data
+        const timeSeriesResponse = await axios.get(
+          `https://portfolio-tracker-rough-dawn-5271.fly.dev/api/performance/timeseries?period=${selectedPeriod}`
+        );
+        setTimeSeriesData(timeSeriesResponse.data);
+        
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching performance', error);
+        console.error('Error fetching performance data:', error);
         setError(error);
         setLoading(false);
       }
     };
 
-    fetchPerformance();
-  }, []);
+    fetchData();
+  }, [selectedPeriod]);
+
+  // Custom tooltip for the chart
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="custom-tooltip">
+          <p className="date">{label}</p>
+          <p className="value">Value: {payload[0].value.toFixed(2)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   if (loading) return <div>Loading performance data...</div>;
   if (error) return <div>Error loading performance data</div>;
-  if (!performance) return <div>No performance data available</div>;
+  if (!performance || !timeSeriesData) return <div>No performance data available</div>;
+
+  // Calculate the total return for the selected period
+  const periodReturn = timeSeriesData.data.length > 1 
+    ? ((timeSeriesData.data[timeSeriesData.data.length - 1].value / 100) - 1) * 100
+    : 0;
 
   return (
     <div className="performance-container">
-      <h2>Trading Performance</h2>
+      <h2>Portfolio Performance</h2>
       
+      {/* Time Period Selection */}
+      <div className="time-period-selector">
+        {timePeriods.map(period => (
+          <button
+            key={period.value}
+            className={`period-button ${selectedPeriod === period.value ? 'active' : ''}`}
+            onClick={() => setSelectedPeriod(period.value)}
+          >
+            {period.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Performance Chart */}
+      <div className="chart-container">
+        <div className="period-return">
+          <span className={getPerformanceClass(periodReturn)}>
+            {periodReturn > 0 ? '+' : ''}{periodReturn.toFixed(2)}%
+          </span>
+          <span className="period-label">
+            {timePeriods.find(p => p.value === selectedPeriod)?.label}
+          </span>
+        </div>
+        
+        <div className="chart">
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={timeSeriesData.data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={(date) => new Date(date).toLocaleDateString()}
+              />
+              <YAxis 
+                domain={['dataMin - 5', 'dataMax + 5']}
+                tickFormatter={(value) => `${value.toFixed(0)}`}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                stroke="#2196F3" 
+                dot={false}
+                strokeWidth={2}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* Overall Statistics */}
       <div className="performance-summary">
         <h3>Overall Statistics</h3>

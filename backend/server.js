@@ -398,6 +398,95 @@ async function startServer() {
       }
     });
 
+    // Get Performance Time Series
+    app.get('/api/performance/timeseries', async (req, res) => {
+      try {
+        const { period = 'all' } = req.query;
+        const closedPositions = await Position.find({ status: 'CLOSED' }).sort({ entryDate: 1 });
+        
+        if (closedPositions.length === 0) {
+          return res.status(404).json({ error: 'No closed positions found' });
+        }
+
+        // Calculate start date based on period
+        const now = new Date();
+        let startDate = new Date(closedPositions[0].entryDate);
+        
+        switch (period) {
+          case '1d':
+            startDate = new Date(now.setDate(now.getDate() - 1));
+            break;
+          case '1w':
+            startDate = new Date(now.setDate(now.getDate() - 7));
+            break;
+          case '1m':
+            startDate = new Date(now.setMonth(now.getMonth() - 1));
+            break;
+          case '6m':
+            startDate = new Date(now.setMonth(now.getMonth() - 6));
+            break;
+          case '1y':
+            startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+            break;
+          case 'ytd':
+            startDate = new Date(now.getFullYear(), 0, 1); // January 1st of current year
+            break;
+          // 'all' uses the earliest entry date by default
+        }
+
+        // Filter positions based on date range
+        const filteredPositions = closedPositions.filter(
+          position => new Date(position.entryDate) >= startDate
+        );
+
+        // Calculate cumulative returns with equal weighting
+        const returns = filteredPositions.map(position => ({
+          date: position.entryDate,
+          return: (position.currentPrice - position.entryPrice) / position.entryPrice
+        }));
+
+        // Generate daily data points
+        const dailyData = [];
+        let currentDate = new Date(startDate);
+        const endDate = new Date();
+
+        while (currentDate <= endDate) {
+          const positionsUpToDate = returns.filter(
+            r => new Date(r.date) <= currentDate
+          );
+
+          if (positionsUpToDate.length > 0) {
+            // Calculate average return (equal weighting)
+            const avgReturn = positionsUpToDate.reduce(
+              (sum, pos) => sum + pos.return, 
+              0
+            ) / positionsUpToDate.length;
+
+            dailyData.push({
+              date: new Date(currentDate).toISOString().split('T')[0],
+              value: (1 + avgReturn) * 100 // Convert to index value starting at 100
+            });
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        res.json({
+          period,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          data: dailyData
+        });
+
+      } catch (error) {
+        console.error('Error calculating time series performance:', error);
+        res.status(500).json({ 
+          error: 'Failed to calculate time series performance',
+          details: error.message 
+        });
+      }
+    });
+
     // Serve Frontend in Production
     app.use(express.static(path.join(__dirname, '../frontend/build')));
 

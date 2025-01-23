@@ -15,6 +15,85 @@
   margin: 20px 0;
 }
 
+/* Time Period Selector */
+.time-period-selector {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.period-button {
+  padding: 8px 16px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.period-button:hover {
+  background: #f5f5f5;
+}
+
+.period-button.active {
+  background: #2196F3;
+  color: white;
+  border-color: #2196F3;
+}
+
+/* Chart Container */
+.chart-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.period-return {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.period-return span {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.period-return .period-label {
+  font-size: 0.9em;
+  color: #666;
+  margin-left: 10px;
+}
+
+.chart {
+  height: 400px;
+  width: 100%;
+}
+
+/* Custom Tooltip */
+.custom-tooltip {
+  background: white;
+  border: 1px solid #e0e0e0;
+  padding: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.custom-tooltip .date {
+  margin: 0;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.custom-tooltip .value {
+  margin: 5px 0 0;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
 /* Overall Statistics Styling */
 .performance-summary {
   background-color: white;
@@ -110,8 +189,17 @@
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .positions-table {
+  .time-period-selector {
+    flex-wrap: wrap;
+  }
+  
+  .period-button {
+    padding: 6px 12px;
     font-size: 0.8em;
+  }
+  
+  .chart {
+    height: 300px;
   }
 }
 
@@ -122,5 +210,9 @@
   
   .stat-item {
     padding: 10px;
+  }
+  
+  .chart {
+    height: 250px;
   }
 } 
