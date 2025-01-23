@@ -181,16 +181,15 @@ function PortfolioList() {
                     ? new Date(position.targetDate).toLocaleDateString() 
                     : 'N/A'}
                 </td>
-                {positions.map(position => (
-                  <tr key={position._id}>
-                    {/* Other columns */}
-                    <td>
-                      {position.timeLeft > 0 
-                        ? `${position.timeLeft} days` 
-                        : 'Expired'}
-                    </td>
-                  </tr>
-                ))}
+                <td>
+                  {position.timeLeft !== undefined
+                    ? position.timeLeft > 0
+                      ? `${position.timeLeft} days left`
+                      : position.timeLeft === 0
+                        ? 'Due today'
+                        : `${Math.abs(position.timeLeft)} days overdue`
+                    : 'N/A'}
+                </td>
                 <td>{position.status}</td>
                 <td>
                   <div className="action-buttons">

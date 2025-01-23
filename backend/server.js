@@ -30,15 +30,15 @@ const positionSchema = new mongoose.Schema({
 
 // Pre-save middleware to calculate profit/loss and percentage change
 positionSchema.pre('save', function(next) {
-  // Calculate time left
-  if (this.entryDate && this.targetDate) {
+  // Calculate time left from current date to target date
+  if (this.targetDate) {
     const millisecondsPerDay = 24 * 60 * 60 * 1000;
-    const timeDiff = this.targetDate.getTime() - new Date().getTime();
+    const currentDate = new Date();
+    const timeDiff = this.targetDate.getTime() - currentDate.getTime();
     this.timeLeft = Math.ceil(timeDiff / millisecondsPerDay);
   } else {
     this.timeLeft = 0;
   }
-
 
   if (this.entryPrice && this.currentPrice) {
     this.profitLoss = this.currentPrice - this.entryPrice;
