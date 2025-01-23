@@ -28,11 +28,7 @@ const mongoPort = 27017;   // MongoDB default port
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+
 
 // Define the Position schema
 const positionSchema = new mongoose.Schema({
@@ -214,14 +210,44 @@ app.put('/api/positions/:id', async (req, res) => {
 });
 app.get('/api/portfolio', async (req, res) => {
   try {
+    console.log('Portfolio Retrieval Attempt');
+    
+    // Verify MongoDB Connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('MongoDB Connection Not Ready');
+      return res.status(500).json({ 
+        error: 'Database Connection Failed',
+        connectionState: mongoose.connection.readyState 
+      });
+    }
+
+    // Detailed Query Logging
     const positions = await Position.find();
     
-    //console.log('RETRIEVING Positions:', positions);
-    
+    console.log('Retrieved Positions:', {
+      count: positions.length,
+      firstPosition: positions[0]
+    });
+
+    // Check if positions exist
+    if (positions.length === 0) {
+      return res.status(404).json({ 
+        error: 'No positions found',
+        message: 'Portfolio is empty' 
+      });
+    }
+
     res.json(positions);
   } catch (error) {
-    console.error('Portfolio Retrieval Error:', error);
-    res.status(500).json({ error: 'Failed to retrieve portfolio' });
+    console.error('Detailed Portfolio Retrieval Error:', {
+      message: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({ 
+      error: 'Failed to retrieve portfolio',
+      details: error.message 
+    });
   }
 });
 
@@ -230,7 +256,13 @@ app.post('/api/performance', (req, res) => {
   // ...
   res.status(201).json({ message: 'Performance data saved successfully' });
 });
-
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'API is working',
+    mongoConnectionState: mongoose.connection.readyState,
+    timestamp: new Date()
+  });
+});
 app.post('/api/positions', async (req, res) => {
   try {
     console.log('FULL Received Data:', req.body);
