@@ -43,7 +43,7 @@ async function connectDatabase() {
     
     // Parse connection string to extract database name
     const parsedUri = new URL(uri);
-    const databaseName = parsedUri.pathname.replace('/', '');
+    const databaseName = 'portfoliodb';
     
     console.log('Connection Details:', {
       uri: uri.substring(0, 50) + '...',
