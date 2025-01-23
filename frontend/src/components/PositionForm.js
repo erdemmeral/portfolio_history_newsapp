@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { addPosition } from '../services/api';
 
 function PositionForm() {
   // Initial state with today's date
@@ -44,8 +44,8 @@ function PositionForm() {
         timeframe: formData.timeframe
       };
 
-      // Send POST request
-      const response = await axios.post('/api/positions', positionData);
+      // Use the API service instead of direct axios call
+      const response = await addPosition(positionData);
       
       console.log('Position Added:', response.data);
       
