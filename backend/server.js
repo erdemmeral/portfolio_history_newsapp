@@ -9,21 +9,113 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// MongoDB Connection
-const mongoUri = process.env.MONGODB_URI;
-console.log('MongoDB URI:', mongoUri);
+// MongoDB Connection Function
+async function connectDatabase() {
+  const uri = process.env.MONGODB_URI;
 
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('MongoDB Atlas Connected Successfully');
-})
-.catch((error) => {
-  console.error('MongoDB Connection Error:', error);
+  if (!uri) {
+    console.error('❌ MongoDB URI is not defined');
+    throw new Error('MongoDB URI is missing');
+  }
+
+  try {
+    console.log('🔍 Attempting MongoDB Connection');
+    
+    // Parse connection string to extract database name
+    const parsedUri = new URL(uri);
+    const databaseName = parsedUri.pathname.replace('/', '');
+    
+    console.log('Connection Details:', {
+      uri: uri.substring(0, 50) + '...',
+      database: databaseName
+    });
+
+    // Connect with explicit database
+    await mongoose.connect(uri, {
+      dbName: databaseName,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+    });
+
+    console.log('✅ MongoDB Connected Successfully');
+
+    // Verify database contents
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    
+    console.log('Database Collections:', collections.map(c => c.name));
+
+    return mongoose.connection;
+
+  } catch (error) {
+    console.error('❌ MongoDB Connection Error:', {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      stack: error.stack
+    });
+    throw error;
+  }
+}
+
+// Startup Connection and Server
+async function startServer() {
+  try {
+    await connectDatabase();
+    
+    const app = express();
+
+    // Middleware
+    app.use(cors());
+    app.use(express.json());
+
+    // Add your existing routes here...
+
+    const port = process.env.PORT || 3000;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Additional routes for database debugging
+app.get('/api/db-details', async (req, res) => {
+  try {
+    const connection = mongoose.connection;
+    const db = connection.db;
+    
+    // List collections
+    const collections = await db.listCollections().toArray();
+    
+    // Count documents in each collection
+    const collectionDetails = await Promise.all(
+      collections.map(async (collection) => {
+        const count = await db.collection(collection.name).countDocuments();
+        return {
+          name: collection.name,
+          documentCount: count
+        };
+      })
+    );
+
+    res.json({
+      databaseName: connection.db.databaseName,
+      collections: collectionDetails
+    });
+  } catch (error) {
+    console.error('Database Details Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve database details',
+      details: error.message 
+    });
+  }
 });
 
+// Start the server
+startServer();
 const app = express();
 
 // Middleware
