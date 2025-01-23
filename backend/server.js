@@ -23,7 +23,6 @@ mongoose.connect(mongoUri, {
 });
 
 const app = express();
-const port = 3000;
 const mongoPort = 27017;   // MongoDB default port
 
 app.use(cors());
@@ -484,9 +483,6 @@ app.get('/api/positions/current-price/:symbol', async (req, res) => {
   }
 });
 // Serve frontend in production
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // Catch-all route to serve React app
