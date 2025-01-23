@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 // MongoDB Connection
 const mongoUri = process.env.MONGODB_URI;
-
+console.log(mongoUri);
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
