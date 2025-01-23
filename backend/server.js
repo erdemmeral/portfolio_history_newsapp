@@ -23,7 +23,21 @@ const positionSchema = new mongoose.Schema({
     enum: ['OPEN', 'CLOSED', 'PENDING'],
     default: 'OPEN'
   },
-  profitLoss: { type: Number, default: 0 }
+  profitLoss: { type: Number, default: 0 },
+  percentageChange: { type: Number, default: 0 }
+});
+
+// Pre-save middleware to calculate profit/loss and percentage change
+positionSchema.pre('save', function(next) {
+  if (this.entryPrice && this.currentPrice) {
+    this.profitLoss = this.currentPrice - this.entryPrice;
+    this.percentageChange = 
+      ((this.currentPrice - this.entryPrice) / this.entryPrice) * 100;
+  } else {
+    this.profitLoss = 0;
+    this.percentageChange = 0;
+  }
+  next();
 });
 
 // Position Model
@@ -176,6 +190,41 @@ async function startServer() {
       }
     });
 
+    // Update Position Price
+    app.patch('/api/positions/:id/update-price', async (req, res) => {
+      try {
+        const { id } = req.params;
+    
+        // Find position
+        const position = await Position.findById(id);
+    
+        if (!position) {
+          return res.status(404).json({ error: 'Position not found' });
+        }
+    
+        // Fetch current price
+        const priceData = await yahooFinance.quote(position.symbol);
+        
+        // Update current price
+        position.currentPrice = priceData.regularMarketPrice;
+    
+        // Save will automatically calculate profitLoss and percentageChange
+        await position.save();
+    
+        res.json({
+          message: 'Position price updated',
+          position
+        });
+    
+      } catch (error) {
+        console.error('Error updating position price:', error);
+        res.status(500).json({ 
+          error: 'Failed to update position price',
+          details: error.message 
+        });
+      }
+    });
+
     // Get Portfolio
     app.get('/api/portfolio', async (req, res) => {
       try {
@@ -220,8 +269,37 @@ async function startServer() {
       }
     });
 
-    // Other existing routes (update, delete, current price, performance)
-    // ... (add other routes from previous implementation)
+    // Performance Calculation
+    app.get('/api/performance', async (req, res) => {
+      try {
+        const closedPositions = await Position.find({ status: 'CLOSED' });
+    
+        const totalTrades = closedPositions.length;
+        const totalProfit = closedPositions.reduce(
+          (sum, position) => sum + position.profitLoss, 
+          0
+        );
+    
+        const winningTrades = closedPositions.filter(
+          position => position.profitLoss > 0
+        );
+    
+        const winRate = totalTrades > 0 
+          ? (winningTrades.length / totalTrades) * 100 
+          : 0;
+    
+        res.json({
+          totalTrades,
+          totalProfit,
+          winRate,
+          closedPositions
+        });
+    
+      } catch (error) {
+        console.error('Error calculating performance:', error);
+        res.status(500).json({ error: 'Performance calculation failed' });
+      }
+    });
 
     // Serve Frontend in Production
     app.use(express.static(path.join(__dirname, '../frontend/build')));
