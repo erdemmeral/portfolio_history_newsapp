@@ -8,13 +8,20 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+// MongoDB Connection
+const mongoUri = process.env.MONGODB_URI;
 
-// Catch-all route to serve React app
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+mongoose.connect(mongoUri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => {
+  console.log('MongoDB Atlas Connected Successfully');
+})
+.catch((error) => {
+  console.error('MongoDB Connection Error:', error);
 });
+
 const app = express();
 const port = 3000;
 const mongoPort = 27017;   // MongoDB default port
@@ -476,7 +483,19 @@ app.get('/api/positions/current-price/:symbol', async (req, res) => {
     });
   }
 });
-// Start the server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-}); 
+// Serve frontend in production
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Catch-all route to serve React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
+
+// Start server
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on port ${port}`);
+});

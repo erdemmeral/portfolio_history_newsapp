@@ -8,7 +8,7 @@ primary_region = "fra"
 [build]
 
 [deploy]
-  release_command = "npm ci && cd frontend && npm ci && npm run build"
+  release_command = "cd backend && npm install && cd ../frontend && npm install && npm run build"
 
 [http_service]
   internal_port = 3000
@@ -19,4 +19,4 @@ primary_region = "fra"
 
 [machines]
   size = "shared-cpu-1x"
-  memory = "1gb"  # Increased from 512mb
+  memory = "1gb"
