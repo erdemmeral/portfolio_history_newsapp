@@ -25,7 +25,7 @@ function PortfolioList() {
   const fetchAndUpdatePositions = async () => {
     try {
       // Fetch current portfolio
-      const portfolioResponse = await axios.get('http://localhost:3000/api/portfolio');
+      const portfolioResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/portfolio');
       const portfolioPositions = portfolioResponse.data;
       
       // Update each position with current price
@@ -101,7 +101,7 @@ function PortfolioList() {
   const saveEditedPosition = async () => {
     try {
       // Update position on backend
-      const updatedPosition = await axios.put(`http://localhost:3000/api/positions/${editingPosition._id}`, editingPosition);
+      const updatedPosition = await axios.put(`https://portfolio-tracker-rough-dawn-5271.fly.dev/api/positions/${editingPosition._id}`, editingPosition);
       
       // Update local state
       setPositions(positions.map(pos => 
