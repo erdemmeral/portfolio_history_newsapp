@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getCurrentPrice, updatePosition, deletePosition } from '../services/api.js';
+import { getCurrentPrice, updatePosition } from '../services/api.js';
 import './PortfolioList.css';
 
 function PortfolioList() {
   const [positions, setPositions] = useState([]);
+  const [cumulativeResults, setCumulativeResults] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editingPosition, setEditingPosition] = useState(null);
 
   // Determine CSS class for percentage change
   const getPercentageChangeClass = (percentageChange) => {
@@ -26,28 +26,23 @@ function PortfolioList() {
     try {
       // Fetch current portfolio
       const portfolioResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/portfolio');
-      const portfolioPositions = portfolioResponse.data;
+      const { positions: portfolioPositions, cumulativeResults: results } = portfolioResponse.data;
       
       // Update each position with current price
       const updatedPositions = await Promise.all(
         portfolioPositions.map(async (position) => {
-            try {
-                // Fetch current price
-                const priceResponse = await getCurrentPrice(position.symbol);
-                const currentPrice = priceResponse.data.currentPrice;
-                console.log(`Current price for ${position.symbol}: ${currentPrice}`);
-                // Calculate profit/loss and percentage change
-                const profitLoss = currentPrice - position.entryPrice;
-                const percentageChange = calculatePercentageChange(position.entryPrice, currentPrice);
+          try {
+            // Fetch current price
+            const priceResponse = await getCurrentPrice(position.symbol);
+            const currentPrice = priceResponse.data.currentPrice;
+            console.log(`Current price for ${position.symbol}: ${currentPrice}`);
+            
+            // Update position on backend
+            const updateResponse = await updatePosition(position._id, {
+              currentPrice
+            });
     
-                // Update position on backend
-                const updateResponse = await updatePosition(position._id, {
-                  currentPrice,
-                  profitLoss,
-                  percentageChange
-                });
-    
-                return updateResponse.data.position;
+            return updateResponse.data.position;
           } catch (updateError) {
             console.error(`Error updating position ${position._id}:`, updateError);
             return position;
@@ -56,6 +51,7 @@ function PortfolioList() {
       );
 
       setPositions(updatedPositions);
+      setCumulativeResults(results);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching and updating portfolio:', error);
@@ -73,55 +69,55 @@ function PortfolioList() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Delete Position Handler
-  const handleDeletePosition = async (positionId) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this position?');
-    
-    if (confirmDelete) {
-      try {
-        await deletePosition(positionId);
-        
-        // Remove position from local state
-        setPositions(positions.filter(pos => pos._id !== positionId));
-        
-        alert('Position deleted successfully');
-      } catch (error) {
-        console.error('Delete Error:', error);
-        alert(`Failed to delete position: ${error.response?.data?.details || error.message}`);
-      }
-    }
-  };
-
-  // Edit Position Handler
-  const handleEditPosition = (position) => {
-    setEditingPosition(position);
-  };
-
-  // Save Edited Position
-  const saveEditedPosition = async () => {
-    try {
-      // Update position on backend
-      const updatedPosition = await axios.put(`https://portfolio-tracker-rough-dawn-5271.fly.dev/api/positions/${editingPosition._id}`, editingPosition);
-      
-      // Update local state
-      setPositions(positions.map(pos => 
-        pos._id === editingPosition._id ? updatedPosition.data : pos
-      ));
-
-      // Close edit modal
-      setEditingPosition(null);
-      alert('Position updated successfully');
-    } catch (error) {
-      console.error('Error updating position', error);
-      alert('Failed to update position');
-    }
-  };
-
   if (loading) return <div>Loading portfolio...</div>;
 
   return (
     <div className="portfolio-container">
       <h2 className="portfolio-title">My Portfolio</h2>
+      
+      {/* Cumulative Results Section */}
+      {cumulativeResults && (
+        <div className="cumulative-results">
+          <h3>Portfolio Summary</h3>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <label>Total Positions:</label>
+              <span>{cumulativeResults.totalPositions}</span>
+            </div>
+            <div className="summary-item">
+              <label>Open Positions:</label>
+              <span>{cumulativeResults.openPositions}</span>
+            </div>
+            <div className="summary-item">
+              <label>Closed Positions:</label>
+              <span>{cumulativeResults.closedPositions}</span>
+            </div>
+            <div className="summary-item">
+              <label>Total Investment:</label>
+              <span>${cumulativeResults.totalInvestment.toFixed(2)}</span>
+            </div>
+            <div className="summary-item">
+              <label>Current Value:</label>
+              <span>${cumulativeResults.currentValue.toFixed(2)}</span>
+            </div>
+            <div className="summary-item">
+              <label>Total P/L:</label>
+              <span className={getPercentageChangeClass(cumulativeResults.totalProfitLoss)}>
+                ${cumulativeResults.totalProfitLoss.toFixed(2)}
+              </span>
+            </div>
+            <div className="summary-item">
+              <label>Total % Change:</label>
+              <span className={getPercentageChangeClass(cumulativeResults.totalPercentageChange)}>
+                {cumulativeResults.totalPercentageChange.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Individual Positions Table */}
+      <h3>Individual Positions</h3>
       <table className="portfolio-table">
         <thead>
           <tr>
@@ -135,7 +131,6 @@ function PortfolioList() {
             <th>Target Date</th>
             <th>Time Left</th>
             <th>Status</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -191,67 +186,11 @@ function PortfolioList() {
                     : 'N/A'}
                 </td>
                 <td>{position.status}</td>
-                <td>
-                  <div className="action-buttons">
-                    <button 
-                      className="edit-btn"
-                      onClick={() => handleEditPosition(position)}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      className="delete-btn"
-                      onClick={() => handleDeletePosition(position._id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      
-      {/* Edit Modal */}
-      {editingPosition && (
-        <div className="edit-modal">
-          <div className="edit-modal-content">
-            <h2>Edit Position</h2>
-            <input
-              type="text"
-              value={editingPosition.symbol}
-              onChange={(e) => setEditingPosition({
-                ...editingPosition, 
-                symbol: e.target.value
-              })}
-              placeholder="Symbol"
-            />
-            <input
-              type="number"
-              value={editingPosition.entryPrice}
-              onChange={(e) => setEditingPosition({
-                ...editingPosition, 
-                entryPrice: parseFloat(e.target.value)
-              })}
-              placeholder="Entry Price"
-            />
-            <input
-              type="number"
-              value={editingPosition.targetPrice || ''}
-              onChange={(e) => setEditingPosition({
-                ...editingPosition, 
-                targetPrice: e.target.value ? parseFloat(e.target.value) : null
-              })}
-              placeholder="Target Price"
-            />
-            <div>
-              <button onClick={saveEditedPosition}>Save</button>
-              <button onClick={() => setEditingPosition(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {positions.length === 0 && (
         <p className="no-positions">No positions found</p>

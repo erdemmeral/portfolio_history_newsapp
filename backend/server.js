@@ -152,39 +152,38 @@ async function startServer() {
     // Add Position
     app.post('/api/positions', async (req, res) => {
       try {
-        const positionData = req.body;
+        const { symbol, entryPrice, targetPrice, entryDate, targetDate } = req.body;
     
         // Validate required fields
-        const requiredFields = ['symbol', 'entryPrice', 'entryDate', 'targetDate'];
+        const requiredFields = ['symbol', 'entryPrice', 'targetPrice', 'entryDate', 'targetDate'];
+        const missingFields = requiredFields.filter(field => !req.body[field]);
         
-        for (let field of requiredFields) {
-          if (!positionData[field]) {
-            return res.status(400).json({ 
-              error: `${field} is required` 
-            });
-          }
+        if (missingFields.length > 0) {
+          return res.status(400).json({ 
+            error: `Missing required fields: ${missingFields.join(', ')}` 
+          });
         }
     
-        // Create new position
+        // Create new position with required fields
         const newPosition = new Position({
-          symbol: positionData.symbol,
-          entryPrice: positionData.entryPrice,
-          targetPrice: positionData.targetPrice || null,
-          entryDate: new Date(positionData.entryDate), // Ensure proper Date object
-          targetDate: new Date(positionData.targetDate), // Ensure proper Date object
-          timeframe: positionData.timeframe || '',
+          symbol: symbol.toUpperCase(),
+          entryPrice: parseFloat(entryPrice),
+          targetPrice: parseFloat(targetPrice),
+          entryDate: new Date(entryDate),
+          targetDate: new Date(targetDate),
           status: 'OPEN'
         });
     
-        // Fetch current price
+        // Fetch current price from Yahoo Finance
         try {
           const priceData = await yahooFinance.quote(newPosition.symbol);
           newPosition.currentPrice = priceData.regularMarketPrice;
         } catch (priceError) {
           console.error(`Could not fetch current price for ${newPosition.symbol}:`, priceError);
+          newPosition.currentPrice = null;
         }
     
-        // Save position
+        // Save position (pre-save middleware will calculate timeLeft, profitLoss, and percentageChange)
         await newPosition.save();
     
         res.status(201).json({
@@ -250,8 +249,8 @@ async function startServer() {
           });
         }
 
-        // Retrieve Positions
-        const positions = await Position.find();
+        // Retrieve All Positions (both open and closed)
+        const positions = await Position.find().sort({ entryDate: -1 });
         
         console.log('Retrieved Positions:', {
           count: positions.length,
@@ -266,7 +265,28 @@ async function startServer() {
           });
         }
 
-        res.json(positions);
+        // Calculate cumulative results
+        const totalInvestment = positions.reduce((sum, pos) => sum + pos.entryPrice, 0);
+        const currentValue = positions.reduce((sum, pos) => sum + (pos.currentPrice || pos.entryPrice), 0);
+        const totalProfitLoss = positions.reduce((sum, pos) => sum + (pos.profitLoss || 0), 0);
+        
+        const openPositions = positions.filter(pos => pos.status === 'OPEN');
+        const closedPositions = positions.filter(pos => pos.status === 'CLOSED');
+        
+        const cumulativeResults = {
+          totalPositions: positions.length,
+          openPositions: openPositions.length,
+          closedPositions: closedPositions.length,
+          totalInvestment,
+          currentValue,
+          totalProfitLoss,
+          totalPercentageChange: ((currentValue - totalInvestment) / totalInvestment) * 100
+        };
+
+        res.json({
+          positions, // Individual transactions
+          cumulativeResults // Summary of all transactions
+        });
       } catch (error) {
         console.error('Detailed Portfolio Retrieval Error:', {
           message: error.message,
@@ -276,6 +296,51 @@ async function startServer() {
         res.status(500).json({ 
           error: 'Failed to retrieve portfolio',
           details: error.message 
+        });
+      }
+    });
+
+    // Handle Sell Signal
+    app.post('/api/positions/:symbol/sell', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+        const { soldPrice } = req.body;
+
+        if (!soldPrice) {
+          return res.status(400).json({
+            error: 'Sold price is required'
+          });
+        }
+
+        // Find the most recent OPEN position for this symbol
+        const position = await Position.findOne({ 
+          symbol: symbol.toUpperCase(),
+          status: 'OPEN'
+        }).sort({ entryDate: -1 });
+
+        if (!position) {
+          return res.status(404).json({
+            error: `No open position found for symbol ${symbol}`
+          });
+        }
+
+        // Update position with sold price and status
+        position.currentPrice = parseFloat(soldPrice);
+        position.status = 'CLOSED';
+
+        // Save will trigger pre-save middleware to recalculate profitLoss and percentageChange
+        await position.save();
+
+        res.json({
+          message: 'Position closed successfully',
+          position
+        });
+
+      } catch (error) {
+        console.error('Error handling sell signal:', error);
+        res.status(500).json({
+          error: 'Failed to process sell signal',
+          details: error.message
         });
       }
     });
@@ -298,12 +363,33 @@ async function startServer() {
         const winRate = totalTrades > 0 
           ? (winningTrades.length / totalTrades) * 100 
           : 0;
+
+        // Calculate average profit per trade
+        const avgProfit = totalTrades > 0 
+          ? totalProfit / totalTrades 
+          : 0;
+
+        // Calculate largest win and loss
+        const largestWin = Math.max(...closedPositions.map(p => p.profitLoss), 0);
+        const largestLoss = Math.min(...closedPositions.map(p => p.profitLoss), 0);
     
         res.json({
           totalTrades,
           totalProfit,
           winRate,
-          closedPositions
+          avgProfit,
+          largestWin,
+          largestLoss,
+          closedPositions: closedPositions.map(p => ({
+            symbol: p.symbol,
+            entryPrice: p.entryPrice,
+            soldPrice: p.currentPrice,
+            profitLoss: p.profitLoss,
+            percentageChange: p.percentageChange,
+            entryDate: p.entryDate,
+            targetDate: p.targetDate,
+            timeframe: p.timeframe
+          }))
         });
     
       } catch (error) {
