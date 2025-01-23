@@ -1,56 +1,39 @@
-# flyctl launch added from .gitignore
 # Dependency directories
-**\node_modules
+**/node_modules
+**/build
+**/dist
 
 # Environment files
-**\.env
+.env
+**/.env
 
 # Logs
-**\npm-debug.log*
-**\yarn-debug.log*
-**\yarn-error.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Build outputs
-**\build
-**\dist
+# Version control
+.git
+.gitignore
 
-# IDE specific files
-**\.vscode
-**\.idea
+# IDE specific
+.vscode
+.idea
+*.swp
+*.swo
 
-# Operating System files
-**\.DS_Store
-**\Thumbs.db
+# Operating system files
+.DS_Store
+Thumbs.db
 
-# Backend specific
-**\backend\node_modules
+# Unnecessary directories
+__tests__
+test
+docs
 
-# Frontend specific
-**\frontend\node_modules
-**\frontend\build
+# Frontend build artifacts
+frontend/build
+frontend/node_modules
 
-# flyctl launch added from frontend\.gitignore
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-frontend\node_modules
-frontend\.pnp
-frontend\**\.pnp.js
-
-# testing
-frontend\coverage
-
-# production
-frontend\build
-
-# misc
-frontend\**\.DS_Store
-frontend\**\.env.local
-frontend\**\.env.development.local
-frontend\**\.env.test.local
-frontend\**\.env.production.local
-
-frontend\**\npm-debug.log*
-frontend\**\yarn-debug.log*
-frontend\**\yarn-error.log*
-fly.toml
+# Backend build artifacts
+backend/node_modules
