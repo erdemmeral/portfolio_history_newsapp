@@ -191,31 +191,32 @@ async function startServer() {
     });
 
     // Update Position Price
+    // Update Position Price Route
     app.patch('/api/positions/:id/update-price', async (req, res) => {
       try {
         const { id } = req.params;
-    
+
         // Find position
         const position = await Position.findById(id);
-    
+
         if (!position) {
           return res.status(404).json({ error: 'Position not found' });
         }
-    
+
         // Fetch current price
         const priceData = await yahooFinance.quote(position.symbol);
         
         // Update current price
         position.currentPrice = priceData.regularMarketPrice;
-    
+
         // Save will automatically calculate profitLoss and percentageChange
         await position.save();
-    
+
         res.json({
           message: 'Position price updated',
           position
         });
-    
+
       } catch (error) {
         console.error('Error updating position price:', error);
         res.status(500).json({ 
@@ -224,7 +225,6 @@ async function startServer() {
         });
       }
     });
-
     // Get Portfolio
     app.get('/api/portfolio', async (req, res) => {
       try {

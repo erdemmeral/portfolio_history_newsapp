@@ -9,8 +9,10 @@ const apiService = axios.create({
 export const getCurrentPrice = (symbol) => 
   apiService.get(`/positions/current-price/${symbol}`);
 
+// In api.js or services file
 export const updatePosition = (positionId, updateData) => 
-  apiService.patch(`/positions/${positionId}/update`, updateData);
+  axios.patch(`/api/positions/${positionId}/update-price`, updateData);
+
 
 export const addPosition = (positionData) => 
   apiService.post('/positions', positionData);
