@@ -2,7 +2,7 @@
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-
+#updates
 app = 'portfolio-tracker-rough-dawn-5271'
 primary_region = 'fra'
 
