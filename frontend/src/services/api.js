@@ -1,27 +1,27 @@
 import axios from 'axios';
 
-// Base URL for API calls
-const API_BASE_URL = 'http://localhost:3000/api';
-
-// Create an axios instance with base configuration
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 5000, // Optional: set timeout
+const apiService = axios.create({
+  baseURL: '/api', // Always use relative path
+  timeout: 10000   // Optional: set timeout
 });
 
-// Portfolio-related API calls
-export const getPortfolio = () => api.get('/portfolio');
-export const addPosition = (positionData) => api.post('/positions', positionData);
-export const getPerformance = () => api.get('/performance');
-export const getCurrentPrice = (symbol) => {
-    console.log(`Attempting to get price for ${symbol}`);
-    return axios.get(`${API_BASE_URL}/positions/current-price/${symbol}`);
-};
-export const updatePosition = (positionId, updateData) => 
-    axios.patch(`${API_BASE_URL}/positions/${positionId}/update`, updateData);
-  
-export const deletePosition = (positionId) => {
-  return axios.delete(`${API_BASE_URL}/positions/${positionId}`);
-};
+// Export individual API methods
+export const getCurrentPrice = (symbol) => 
+  apiService.get(`/positions/current-price/${symbol}`);
 
-export default api;
+export const updatePosition = (positionId, updateData) => 
+  apiService.patch(`/positions/${positionId}/update`, updateData);
+
+export const addPosition = (positionData) => 
+  apiService.post('/positions', positionData);
+
+export const deletePosition = (positionId) => 
+  apiService.delete(`/positions/${positionId}`);
+
+export const getPortfolio = () => 
+  apiService.get('/portfolio');
+
+export const getPerformance = () => 
+  apiService.get('/performance');
+
+export default apiService;

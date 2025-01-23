@@ -1,20 +1,28 @@
-# Use official Node.js image
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Remove npm global update
+# RUN npm install -g npm@latest
 
-# Install dependencies
+# Copy root package.json and install root dependencies
+COPY package.json .
 RUN npm install
 
-# Copy rest of the application
-COPY . .
+# Copy backend and frontend code
+COPY backend ./backend
+COPY frontend ./frontend
+
+# Build frontend
+WORKDIR /app/frontend
+RUN npm install
+RUN npm run build
+
+# Switch back to root
+WORKDIR /app
 
 # Expose port
 EXPOSE 3000
 
-# Start command
-CMD ["node", "server.js"]
+# Start backend with built frontend
+CMD ["node", "backend/server.js"]

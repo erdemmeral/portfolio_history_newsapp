@@ -2,9 +2,19 @@ import express from 'express';
 import cors from 'cors';  // Add this import
 import yahooFinance from 'yahoo-finance2';
 import mongoose from 'mongoose';
-
+import path from 'path';
+import { fileURLToPath } from 'url';
 //import yahooFinance from 'yahoo-finance2/dist/esm/index.js';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Catch-all route to serve React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
 const app = express();
 const port = 3000;
 const mongoPort = 27017;   // MongoDB default port
@@ -13,9 +23,9 @@ app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost/portfoliodb', {
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
+  useUnifiedTopology: true
 });
 
 // Define the Position schema
