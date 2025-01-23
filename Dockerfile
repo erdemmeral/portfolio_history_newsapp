@@ -2,11 +2,16 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy backend package files
+# Copy package files first for better caching
 COPY backend/package*.json ./backend/
+COPY frontend/package*.json ./frontend/
 
 # Install backend dependencies
 WORKDIR /app/backend
+RUN npm install
+
+# Install frontend dependencies
+WORKDIR /app/frontend
 RUN npm install
 
 # Copy entire project
@@ -14,7 +19,6 @@ COPY . /app
 
 # Build frontend
 WORKDIR /app/frontend
-RUN npm install
 RUN npm run build
 
 # Back to backend for running
