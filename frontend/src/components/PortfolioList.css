@@ -1,0 +1,227 @@
+.portfolio-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f4f4f4;
+}
+.portfolio-table .positive {
+  color: green;
+}
+
+.portfolio-table .negative {
+  color: red;
+}
+.portfolio-title {
+  text-align: center;
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.portfolio-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background-color: white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.portfolio-table thead {
+  background-color: #2c3e50;
+  color: white;
+}
+
+.portfolio-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  border-bottom: 2px solid #34495e;
+}
+
+.portfolio-table tbody tr {
+  transition: background-color 0.3s ease;
+}
+
+.portfolio-table tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.portfolio-table tbody tr:hover {
+  background-color: #e9ecef;
+}
+
+.portfolio-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.9em;
+}
+
+/* Status Styling */
+.portfolio-table td:nth-child(9) {
+  font-weight: bold;
+}
+
+.portfolio-table td:nth-child(9)[data-status="ACTIVE"] {
+  color: #27ae60;
+}
+
+.portfolio-table td:nth-child(9)[data-status="SOLD"] {
+  color: #e74c3c;
+}
+
+/* Profit/Loss Styling */
+.portfolio-table td:nth-child(4) {
+  font-weight: bold;
+}
+
+.portfolio-table td:nth-child(4).positive {
+  color: #27ae60;
+}
+
+.portfolio-table td:nth-child(4).negative {
+  color: #e74c3c;
+}
+
+.portfolio-table td:nth-child(5) {
+  font-weight: bold;
+}
+
+.portfolio-table td:nth-child(5).positive {
+  color: #27ae60;
+}
+
+.portfolio-table td:nth-child(5).negative {
+  color: #e74c3c;
+}
+
+.no-positions {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .portfolio-table {
+    font-size: 0.8em;
+  }
+
+  .portfolio-table th,
+  .portfolio-table td {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .portfolio-container {
+    padding: 10px;
+  }
+
+  .portfolio-table {
+    font-size: 0.7em;
+  }
+
+  .portfolio-table th,
+  .portfolio-table td {
+    padding: 6px;
+  }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.edit-btn, 
+.delete-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.edit-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.edit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.edit-modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+}
+
+.edit-modal-content input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.edit-btn, 
+.delete-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.edit-btn {
+  background-color: #3498db;
+  color: white;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.edit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.edit-modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+}
