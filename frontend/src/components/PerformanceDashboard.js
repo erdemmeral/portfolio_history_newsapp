@@ -35,12 +35,12 @@ function PerformanceDashboard() {
         setLoading(true);
         
         // Fetch overall performance metrics
-        const perfResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/performance');
+        const perfResponse = await axios.get('/api/performance');
         setPerformance(perfResponse.data);
 
         // Fetch time series data
         const timeSeriesResponse = await axios.get(
-          `https://portfolio-tracker-rough-dawn-5271.fly.dev/api/performance/timeseries?period=${selectedPeriod}`
+          `/api/performance/timeseries?period=${selectedPeriod}`
         );
         setTimeSeriesData(timeSeriesResponse.data);
         

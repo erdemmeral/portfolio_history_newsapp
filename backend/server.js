@@ -471,6 +471,14 @@ async function startServer() {
           currentDate.setDate(currentDate.getDate() + 1);
         }
 
+        // Add logging to debug
+        console.log('Time Series Response:', {
+          period,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          dataPoints: dailyData.length
+        });
+
         res.json({
           period,
           startDate: startDate.toISOString(),
