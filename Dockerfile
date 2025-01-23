@@ -1,26 +1,23 @@
 FROM node:18-alpine
 
-# Use non-root user
-USER node
-WORKDIR /home/node/app
+WORKDIR /app
 
-# Copy only necessary files
-COPY --chown=node:node package*.json ./
+# Copy package files first
+COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies with npm install (instead of ci)
+RUN npm install
 
-# Copy project files
-COPY --chown=node:node backend ./backend
-COPY --chown=node:node frontend ./frontend
+# Copy entire project
+COPY . .
 
 # Build frontend
-WORKDIR /home/node/app/frontend
-RUN npm ci
+WORKDIR /app/frontend
+RUN npm install
 RUN npm run build
 
 # Back to root
-WORKDIR /home/node/app
+WORKDIR /app
 
 # Expose port
 EXPOSE 3000
