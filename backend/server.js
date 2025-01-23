@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import { MongoClient, ServerApiVersion } from 'mongodb';
 import yahooFinance from 'yahoo-finance2';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,21 +10,80 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// MongoDB Connection
-const mongoUri = process.env.MONGODB_URI;
-console.log('MongoDB URI:', mongoUri);
+// MongoDB Connection Function
+async function connectDatabase() {
+  const uri = process.env.MONGODB_URI;
 
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('MongoDB Atlas Connected Successfully');
-})
-.catch((error) => {
-  console.error('MongoDB Connection Error:', error);
-});
+  if (!uri) {
+    console.error('❌ MongoDB URI is not defined');
+    throw new Error('MongoDB URI is missing');
+  }
 
+  try {
+    console.log('🔍 Attempting MongoDB Connection');
+    console.log('Connection URI (partial):', uri.substring(0, 50) + '...');
+
+    // Mongoose Connection Logging
+    mongoose.connection.on('connecting', () => {
+      console.log('🟡 Mongoose: Connecting to MongoDB...');
+    });
+
+    mongoose.connection.on('connected', () => {
+      console.log('🟢 Mongoose: Connected Successfully');
+    });
+
+    mongoose.connection.on('error', (error) => {
+      console.error('🔴 Mongoose Connection Error:', {
+        message: error.message,
+        name: error.name,
+        code: error.code
+      });
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.log('🟠 Mongoose: Disconnected');
+    });
+
+    // Establish Connection
+    await mongoose.connect(uri, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      },
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+    });
+
+    // Additional Connection Verification
+    const client = new MongoClient(uri, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      }
+    });
+
+    await client.connect();
+    await client.db("admin").command({ ping: 1 });
+    console.log("✅ MongoDB Ping Successful");
+
+    return mongoose.connection;
+
+  } catch (error) {
+    console.error('❌ Comprehensive Connection Error:', {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      stack: error.stack
+    });
+    throw error;
+  }
+}
+
+// Express App Initialization
 const app = express();
 
 // Middleware
@@ -50,7 +110,28 @@ const positionSchema = new mongoose.Schema({
 // Position Model
 const Position = mongoose.model('Position', positionSchema);
 
-// API Routes
+// Connection Debugging Route
+app.get('/api/db-connection-test', async (req, res) => {
+  try {
+    const connection = await connectDatabase();
+    
+    res.json({
+      status: 'Connection Successful',
+      readyState: connection.readyState,
+      connectionDetails: {
+        host: connection.host,
+        database: connection.db?.databaseName
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'Connection Failed',
+      error: error.message,
+      details: error
+    });
+  }
+});
+
 // Add Position
 app.post('/api/positions', async (req, res) => {
   try {
@@ -275,8 +356,19 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-// Start Server
-const port = process.env.PORT || 3000;
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
-});
+// Startup Connection and Server
+async function startServer() {
+  try {
+    await connectDatabase();
+    
+    const port = process.env.PORT || 3000;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
