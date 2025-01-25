@@ -25,7 +25,9 @@ const positionSchema = new mongoose.Schema({
     default: 'OPEN'
   },
   profitLoss: { type: Number, default: 0 },
-  percentageChange: { type: Number, default: 0 }
+  percentageChange: { type: Number, default: 0 },
+  soldPrice: { type: Number, default: null },
+  soldDate: { type: Date, default: null }
 });
 
 // Pre-save middleware to calculate profit/loss and percentage change
@@ -361,6 +363,8 @@ async function startServer() {
 
         // Update position with sold price and status
         position.currentPrice = parseFloat(soldPrice);
+        position.soldPrice = parseFloat(soldPrice);
+        position.soldDate = new Date();
         position.status = 'CLOSED';
 
         // Save will trigger pre-save middleware to recalculate profitLoss and percentageChange
@@ -715,6 +719,48 @@ async function startServer() {
         console.error('Error fetching prediction history:', error);
         res.status(500).json({
           error: 'Failed to fetch prediction history',
+          details: error.message
+        });
+      }
+    });
+
+    // Test Sell Position
+    app.post('/api/test/sell', async (req, res) => {
+      try {
+        // Create a test position first
+        const testPosition = new Position({
+          symbol: 'TEST',
+          entryPrice: 100.00,
+          currentPrice: 100.00,
+          targetPrice: 120.00,
+          entryDate: new Date(),
+          targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          status: 'OPEN'
+        });
+
+        await testPosition.save();
+        console.log('Test position created:', testPosition);
+
+        // Now try to sell it
+        testPosition.currentPrice = 110.00; // Simulate a price increase
+        testPosition.status = 'CLOSED';
+        await testPosition.save();
+
+        // Get the updated position
+        const updatedPosition = await Position.findById(testPosition._id);
+
+        res.json({
+          message: 'Test sell completed',
+          originalPosition: testPosition,
+          updatedPosition: updatedPosition,
+          profitLoss: updatedPosition.profitLoss,
+          percentageChange: updatedPosition.percentageChange
+        });
+
+      } catch (error) {
+        console.error('Test sell error:', error);
+        res.status(500).json({
+          error: 'Test sell failed',
           details: error.message
         });
       }

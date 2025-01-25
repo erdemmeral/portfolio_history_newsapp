@@ -189,13 +189,14 @@ function PerformanceDashboard() {
               <th>% Return</th>
               <th>Entry Date</th>
               <th>Target Date</th>
-              <th>Duration</th>
+              <th>Exit Date</th>
+              <th>Hold Duration</th>
             </tr>
           </thead>
           <tbody>
             {performance.closedPositions.map((position, index) => {
-              const duration = Math.ceil(
-                (new Date(position.targetDate) - new Date(position.entryDate)) / 
+              const holdDuration = Math.ceil(
+                (new Date(position.soldDate) - new Date(position.entryDate)) / 
                 (1000 * 60 * 60 * 24)
               );
               
@@ -212,7 +213,8 @@ function PerformanceDashboard() {
                   </td>
                   <td>{new Date(position.entryDate).toLocaleDateString()}</td>
                   <td>{new Date(position.targetDate).toLocaleDateString()}</td>
-                  <td>{duration} days</td>
+                  <td>{new Date(position.soldDate).toLocaleDateString()}</td>
+                  <td>{holdDuration} days</td>
                 </tr>
               );
             })}

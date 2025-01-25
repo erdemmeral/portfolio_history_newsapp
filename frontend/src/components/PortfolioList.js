@@ -66,9 +66,12 @@ function PortfolioList() {
       const portfolioResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/portfolio');
       const { positions: portfolioPositions } = portfolioResponse.data;
       
+      // Filter for only OPEN positions
+      const openPositions = portfolioPositions.filter(position => position.status === 'OPEN');
+      
       // Update each position with current price
       const updatedPositions = await Promise.all(
-        portfolioPositions.map(async (position) => {
+        openPositions.map(async (position) => {
           try {
             // Fetch current price
             const priceResponse = await getCurrentPrice(position.symbol);
