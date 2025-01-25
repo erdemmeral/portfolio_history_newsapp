@@ -54,6 +54,41 @@ positionSchema.pre('save', function(next) {
 // Position Model
 const Position = mongoose.model('Position', positionSchema);
 
+// Prediction Schema
+const predictionSchema = new mongoose.Schema({
+  symbol: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+  predictions: {
+    svm: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    },
+    rf: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    },
+    xgb: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    },
+    lgb: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    },
+    lstm: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    },
+    ensemble: {
+      price: { type: Number, required: true },
+      change: { type: Number, required: true }
+    }
+  }
+});
+
+// Prediction Model
+const Prediction = mongoose.model('Prediction', predictionSchema);
+
 // MongoDB Connection Function
 async function connectDatabase() {
   const uri = process.env.MONGODB_URI;
@@ -496,6 +531,130 @@ async function startServer() {
         res.status(500).json({ 
           error: 'Failed to calculate time series performance',
           details: error.message 
+        });
+      }
+    });
+
+    // Receive Predictions from External Service
+    app.post('/api/predictions/receive', async (req, res) => {
+      try {
+        const {
+          symbol,
+          predictions: {
+            svm,
+            rf,
+            xgb,
+            lgb,
+            lstm,
+            ensemble
+          }
+        } = req.body;
+
+        // Validate required fields
+        if (!symbol || !svm || !rf || !xgb || !lgb || !lstm || !ensemble) {
+          return res.status(400).json({
+            error: 'Missing required prediction data'
+          });
+        }
+
+        // Log received predictions
+        console.log('Received predictions for', symbol, {
+          svm,
+          rf,
+          xgb,
+          lgb,
+          lstm,
+          ensemble
+        });
+
+        // Store predictions in MongoDB
+        const prediction = new Prediction({
+          symbol,
+          predictions: {
+            svm,
+            rf,
+            xgb,
+            lgb,
+            lstm,
+            ensemble
+          }
+        });
+
+        await prediction.save();
+
+        res.status(201).json({
+          message: 'Predictions received and stored successfully',
+          prediction
+        });
+
+      } catch (error) {
+        console.error('Error storing predictions:', error);
+        res.status(500).json({
+          error: 'Failed to store predictions',
+          details: error.message
+        });
+      }
+    });
+
+    // Get Latest Prediction for Symbol
+    app.get('/api/predictions/:symbol', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+        
+        const prediction = await Prediction.findOne({ symbol })
+          .sort({ timestamp: -1 });
+
+        if (!prediction) {
+          return res.status(404).json({
+            error: 'No predictions found for this symbol'
+          });
+        }
+
+        res.json(prediction);
+
+      } catch (error) {
+        console.error('Error fetching prediction:', error);
+        res.status(500).json({
+          error: 'Failed to fetch prediction',
+          details: error.message
+        });
+      }
+    });
+
+    // Test Prediction Storage
+    app.post('/api/predictions/test', async (req, res) => {
+      try {
+        // Create test prediction
+        const testPrediction = new Prediction({
+          symbol: 'TEST',
+          predictions: {
+            svm: { price: 100.00, change: -5.00 },
+            rf: { price: 110.00, change: 5.00 },
+            xgb: { price: 105.00, change: 0.00 },
+            lgb: { price: 107.00, change: 2.00 },
+            lstm: { price: 103.00, change: -2.00 },
+            ensemble: { price: 105.00, change: 0.00 }
+          }
+        });
+
+        // Save to database
+        await testPrediction.save();
+
+        // Verify storage by retrieving it
+        const savedPrediction = await Prediction.findOne({ symbol: 'TEST' })
+          .sort({ timestamp: -1 });
+
+        res.json({
+          message: 'Test prediction stored and retrieved successfully',
+          stored: testPrediction,
+          retrieved: savedPrediction
+        });
+
+      } catch (error) {
+        console.error('Test prediction error:', error);
+        res.status(500).json({
+          error: 'Test prediction failed',
+          details: error.message
         });
       }
     });
