@@ -73,6 +73,22 @@ function PerformanceDashboard() {
     return null;
   };
 
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'N/A';
+      return d.toLocaleDateString();
+    } catch (error) {
+      return 'N/A';
+    }
+  };
+
+  const formatDuration = (duration) => {
+    if (duration === null || duration === undefined) return 'N/A';
+    return `${duration} days`;
+  };
+
   if (loading) return <div>Loading performance data...</div>;
   if (error) return <div>Error loading performance data</div>;
   if (!performance || !timeSeriesData) return <div>No performance data available</div>;
@@ -202,33 +218,21 @@ function PerformanceDashboard() {
                   )
                 : 0;
 
-              // Format dates with error handling
-              const formatDate = (dateString) => {
-                try {
-                  const date = new Date(dateString);
-                  return date instanceof Date && !isNaN(date) 
-                    ? date.toLocaleDateString()
-                    : 'N/A';
-                } catch {
-                  return 'N/A';
-                }
-              };
-              
               return (
-                <tr key={index}>
+                <tr key={position.symbol}>
                   <td>{position.symbol}</td>
                   <td>${position.entryPrice.toFixed(2)}</td>
-                  <td>${position.soldPrice ? position.soldPrice.toFixed(2) : position.currentPrice.toFixed(2)}</td>
-                  <td className={getPerformanceClass(position.profitLoss)}>
-                    ${position.profitLoss.toFixed(2)}
+                  <td>${position.soldPrice.toFixed(2)}</td>
+                  <td className={position.profitLoss >= 0 ? 'positive' : 'negative'}>
+                    ${Math.abs(position.profitLoss).toFixed(2)}
                   </td>
-                  <td className={getPerformanceClass(position.percentageChange)}>
+                  <td className={position.percentageChange >= 0 ? 'positive' : 'negative'}>
                     {position.percentageChange.toFixed(2)}%
                   </td>
                   <td>{formatDate(position.entryDate)}</td>
                   <td>{formatDate(position.targetDate)}</td>
                   <td>{formatDate(position.soldDate)}</td>
-                  <td>{!isNaN(holdDuration) ? `${holdDuration} days` : 'N/A'}</td>
+                  <td>{formatDuration(position.holdDuration)}</td>
                 </tr>
               );
             })}

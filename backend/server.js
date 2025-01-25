@@ -341,7 +341,7 @@ async function startServer() {
     app.post('/api/positions/:symbol/sell', async (req, res) => {
       try {
         const { symbol } = req.params;
-        const { soldPrice } = req.body;
+        const { soldPrice, soldDate } = req.body;
 
         if (!soldPrice) {
           return res.status(400).json({
@@ -364,7 +364,7 @@ async function startServer() {
         // Update position with sold price and status
         position.currentPrice = parseFloat(soldPrice);
         position.soldPrice = parseFloat(soldPrice);
-        position.soldDate = new Date();
+        position.soldDate = soldDate ? new Date(soldDate) : new Date();
         position.status = 'CLOSED';
 
         // Save will trigger pre-save middleware to recalculate profitLoss and percentageChange
@@ -419,16 +419,25 @@ async function startServer() {
           avgProfit,
           largestWin,
           largestLoss,
-          closedPositions: closedPositions.map(p => ({
-            symbol: p.symbol,
-            entryPrice: p.entryPrice,
-            soldPrice: p.currentPrice,
-            profitLoss: p.profitLoss,
-            percentageChange: p.percentageChange,
-            entryDate: p.entryDate,
-            targetDate: p.targetDate,
-            timeframe: p.timeframe
-          }))
+          closedPositions: closedPositions.map(p => {
+            // Calculate hold duration only if we have both entry and sold dates
+            const holdDuration = p.soldDate && p.entryDate 
+              ? Math.ceil((new Date(p.soldDate) - new Date(p.entryDate)) / (1000 * 60 * 60 * 24))
+              : null;
+
+            return {
+              symbol: p.symbol,
+              entryPrice: p.entryPrice,
+              soldPrice: p.soldPrice || p.currentPrice,
+              profitLoss: p.profitLoss,
+              percentageChange: p.percentageChange,
+              entryDate: p.entryDate,
+              targetDate: p.targetDate,
+              soldDate: p.soldDate,
+              holdDuration,
+              timeframe: p.timeframe
+            };
+          })
         });
     
       } catch (error) {
