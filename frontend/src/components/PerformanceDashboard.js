@@ -195,26 +195,40 @@ function PerformanceDashboard() {
           </thead>
           <tbody>
             {performance.closedPositions.map((position, index) => {
-              const holdDuration = Math.ceil(
-                (new Date(position.soldDate) - new Date(position.entryDate)) / 
-                (1000 * 60 * 60 * 24)
-              );
+              const holdDuration = position.soldDate 
+                ? Math.ceil(
+                    (new Date(position.soldDate) - new Date(position.entryDate)) / 
+                    (1000 * 60 * 60 * 24)
+                  )
+                : 0;
+
+              // Format dates with error handling
+              const formatDate = (dateString) => {
+                try {
+                  const date = new Date(dateString);
+                  return date instanceof Date && !isNaN(date) 
+                    ? date.toLocaleDateString()
+                    : 'N/A';
+                } catch {
+                  return 'N/A';
+                }
+              };
               
               return (
                 <tr key={index}>
                   <td>{position.symbol}</td>
                   <td>${position.entryPrice.toFixed(2)}</td>
-                  <td>${position.soldPrice.toFixed(2)}</td>
+                  <td>${position.soldPrice ? position.soldPrice.toFixed(2) : position.currentPrice.toFixed(2)}</td>
                   <td className={getPerformanceClass(position.profitLoss)}>
                     ${position.profitLoss.toFixed(2)}
                   </td>
                   <td className={getPerformanceClass(position.percentageChange)}>
                     {position.percentageChange.toFixed(2)}%
                   </td>
-                  <td>{new Date(position.entryDate).toLocaleDateString()}</td>
-                  <td>{new Date(position.targetDate).toLocaleDateString()}</td>
-                  <td>{new Date(position.soldDate).toLocaleDateString()}</td>
-                  <td>{holdDuration} days</td>
+                  <td>{formatDate(position.entryDate)}</td>
+                  <td>{formatDate(position.targetDate)}</td>
+                  <td>{formatDate(position.soldDate)}</td>
+                  <td>{!isNaN(holdDuration) ? `${holdDuration} days` : 'N/A'}</td>
                 </tr>
               );
             })}
