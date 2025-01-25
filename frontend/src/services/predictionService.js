@@ -82,4 +82,20 @@ export const getBatchPredictions = async (positions) => {
   }
 };
 
+// Get prediction history
+export const getPredictionHistory = async (startDate = null) => {
+  try {
+    let url = '/predictions/history';
+    if (startDate) {
+      url += `?startDate=${startDate.toISOString()}`;
+    }
+
+    const response = await predictionService.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Prediction history error:', error);
+    throw new Error(error.response?.data?.message || 'Failed to fetch prediction history');
+  }
+};
+
 export default predictionService; 

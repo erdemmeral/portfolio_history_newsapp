@@ -659,6 +659,67 @@ async function startServer() {
       }
     });
 
+    // Get Historical Predictions
+    app.get('/api/predictions/history', async (req, res) => {
+      try {
+        const { startDate } = req.query;
+        let query = {};
+
+        // If startDate is provided, filter predictions after that date
+        if (startDate) {
+          query.timestamp = { $gte: new Date(startDate) };
+        }
+
+        // Get predictions sorted by timestamp
+        const predictions = await Prediction.find(query)
+          .sort({ timestamp: -1 });
+
+        // Format the response
+        const formattedPredictions = predictions.map(prediction => ({
+          symbol: prediction.symbol,
+          timestamp: prediction.timestamp,
+          predictions: {
+            svm: {
+              price: prediction.predictions.svm.price,
+              change: prediction.predictions.svm.change
+            },
+            rf: {
+              price: prediction.predictions.rf.price,
+              change: prediction.predictions.rf.change
+            },
+            xgb: {
+              price: prediction.predictions.xgb.price,
+              change: prediction.predictions.xgb.change
+            },
+            lgb: {
+              price: prediction.predictions.lgb.price,
+              change: prediction.predictions.lgb.change
+            },
+            lstm: {
+              price: prediction.predictions.lstm.price,
+              change: prediction.predictions.lstm.change
+            },
+            ensemble: {
+              price: prediction.predictions.ensemble.price,
+              change: prediction.predictions.ensemble.change
+            }
+          }
+        }));
+
+        res.json({
+          count: formattedPredictions.length,
+          predictions: formattedPredictions
+        });
+
+      } catch (error) {
+        console.error('Error fetching prediction history:', error);
+        res.status(500).json({
+          error: 'Failed to fetch prediction history',
+          details: error.message
+        });
+      }
+    });
+
     // Serve Frontend in Production
     app.use(express.static(path.join(__dirname, '../frontend/build')));
 
