@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import './PerformanceDashboard.css';
 
 function PerformanceDashboard() {
   const [performance, setPerformance] = useState(null);
   const [timeSeriesData, setTimeSeriesData] = useState(null);
+  const [sp500Data, setSp500Data] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('1m');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,21 +29,90 @@ function PerformanceDashboard() {
     { label: 'ALL', value: 'all' }
   ];
 
+  // Fetch S&P 500 data
+  const fetchSP500Data = async (startDate, endDate) => {
+    try {
+      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC`, {
+        params: {
+          period1: Math.floor(startDate.getTime() / 1000),
+          period2: Math.floor(endDate.getTime() / 1000),
+          interval: '1d'
+        }
+      });
+
+      const timestamps = response.data.chart.result[0].timestamp;
+      const closePrices = response.data.chart.result[0].indicators.quote[0].close;
+      
+      // Calculate normalized values (starting from 1.00)
+      const initialPrice = closePrices[0];
+      const normalizedData = closePrices.map(price => price / initialPrice);
+
+      return timestamps.map((timestamp, index) => ({
+        date: new Date(timestamp * 1000).toISOString().split('T')[0],
+        sp500: normalizedData[index]
+      }));
+    } catch (error) {
+      console.error('Error fetching S&P 500 data:', error);
+      return null;
+    }
+  };
+
   // Fetch performance metrics and time series data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        // Fetch overall performance metrics
-        const perfResponse = await axios.get('/api/performance');
-        setPerformance(perfResponse.data);
+        // Calculate date range based on selected period
+        const endDate = new Date();
+        let startDate = new Date();
+        
+        switch (selectedPeriod) {
+          case '1d':
+            startDate.setDate(startDate.getDate() - 1);
+            break;
+          case '1w':
+            startDate.setDate(startDate.getDate() - 7);
+            break;
+          case '1m':
+            startDate.setMonth(startDate.getMonth() - 1);
+            break;
+          case '6m':
+            startDate.setMonth(startDate.getMonth() - 6);
+            break;
+          case '1y':
+            startDate.setFullYear(startDate.getFullYear() - 1);
+            break;
+          case 'ytd':
+            startDate = new Date(endDate.getFullYear(), 0, 1);
+            break;
+          default: // 'all'
+            startDate = new Date(2020, 0, 1); // Set a reasonable default start date
+        }
 
-        // Fetch time series data
-        const timeSeriesResponse = await axios.get(
-          `/api/performance/timeseries?period=${selectedPeriod}`
-        );
-        setTimeSeriesData(timeSeriesResponse.data);
+        // Fetch portfolio performance
+        const [perfResponse, timeSeriesResponse] = await Promise.all([
+          axios.get('/api/performance'),
+          axios.get(`/api/performance/timeseries?period=${selectedPeriod}`)
+        ]);
+
+        // Fetch S&P 500 data
+        const sp500DataPoints = await fetchSP500Data(startDate, endDate);
+
+        // Merge portfolio and S&P 500 data
+        const mergedData = timeSeriesResponse.data.data.map(point => {
+          const sp500Point = sp500DataPoints?.find(p => p.date === point.date);
+          return {
+            ...point,
+            sp500: sp500Point?.sp500 || null
+          };
+        });
+
+        setPerformance(perfResponse.data);
+        setTimeSeriesData({
+          ...timeSeriesResponse.data,
+          data: mergedData
+        });
         
         setLoading(false);
       } catch (error) {
@@ -58,15 +128,21 @@ function PerformanceDashboard() {
   // Custom tooltip for the chart
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const value = payload[0].value;
-      const percentageChange = ((value - 1) * 100).toFixed(2);
-      const sign = percentageChange > 0 ? '+' : '';
+      const portfolioValue = payload[0]?.value;
+      const sp500Value = payload[1]?.value;
+      
+      const portfolioReturn = ((portfolioValue - 1) * 100).toFixed(2);
+      const sp500Return = sp500Value ? ((sp500Value - 1) * 100).toFixed(2) : 'N/A';
       
       return (
         <div className="custom-tooltip">
           <p className="date">{new Date(label).toLocaleDateString()}</p>
-          <p className="value">Price: ${value.toFixed(2)}</p>
-          <p className="change">Return: {sign}{percentageChange}%</p>
+          <p className={`value ${portfolioReturn >= 0 ? 'positive' : 'negative'}`}>
+            Portfolio: {portfolioReturn}%
+          </p>
+          <p className={`value ${sp500Return >= 0 ? 'positive' : 'negative'}`}>
+            S&P 500: {sp500Return}%
+          </p>
         </div>
       );
     }
@@ -128,7 +204,7 @@ function PerformanceDashboard() {
         
         <div className="chart">
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={timeSeriesData.data}>
+            <LineChart data={timeSeriesData?.data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
                 dataKey="date" 
@@ -136,15 +212,26 @@ function PerformanceDashboard() {
               />
               <YAxis 
                 domain={['auto', 'auto']}
-                tickFormatter={(value) => `$${value.toFixed(2)}`}
+                tickFormatter={(value) => `${((value - 1) * 100).toFixed(1)}%`}
               />
               <Tooltip content={<CustomTooltip />} />
+              <Legend />
               <Line 
                 type="monotone" 
                 dataKey="value" 
-                stroke="#2196F3" 
+                name="Portfolio"
+                stroke="#2563eb" 
                 dot={false}
                 strokeWidth={2}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="sp500" 
+                name="S&P 500"
+                stroke="#64748b" 
+                dot={false}
+                strokeWidth={2}
+                strokeDasharray="5 5"
               />
             </LineChart>
           </ResponsiveContainer>
