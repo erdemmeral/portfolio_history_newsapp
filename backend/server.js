@@ -60,6 +60,7 @@ const Position = mongoose.model('Position', positionSchema);
 const predictionSchema = new mongoose.Schema({
   symbol: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
+  targetDate: { type: Date, required: true },
   predictions: {
     svm: {
       price: { type: Number, required: true },
@@ -553,6 +554,7 @@ async function startServer() {
       try {
         const {
           symbol,
+          targetDate,
           predictions: {
             svm,
             rf,
@@ -564,7 +566,7 @@ async function startServer() {
         } = req.body;
 
         // Validate required fields
-        if (!symbol || !svm || !rf || !xgb || !lgb || !lstm || !ensemble) {
+        if (!symbol || !targetDate || !svm || !rf || !xgb || !lgb || !lstm || !ensemble) {
           return res.status(400).json({
             error: 'Missing required prediction data'
           });
@@ -572,6 +574,7 @@ async function startServer() {
 
         // Log received predictions
         console.log('Received predictions for', symbol, {
+          targetDate,
           svm,
           rf,
           xgb,
@@ -583,6 +586,7 @@ async function startServer() {
         // Store predictions in MongoDB
         const prediction = new Prediction({
           symbol,
+          targetDate,
           predictions: {
             svm,
             rf,
@@ -691,6 +695,7 @@ async function startServer() {
         const formattedPredictions = predictions.map(prediction => ({
           symbol: prediction.symbol,
           timestamp: prediction.timestamp,
+          targetDate: prediction.targetDate,
           predictions: {
             svm: {
               price: prediction.predictions.svm.price,
