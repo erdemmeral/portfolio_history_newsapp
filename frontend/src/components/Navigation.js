@@ -1,17 +1,39 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import './Navigation.css';
 
 function Navigation() {
+  const location = useLocation();
+
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
   return (
-    <nav>
-      <ul style={{ display: 'flex', listStyle: 'none', padding: 0 }}>
-        <li style={{ margin: '0 10px' }}>
-          <Link to="/">Portfolio</Link>
-        </li>
-        <li style={{ margin: '0 10px' }}>
-          <Link to="/performance">Performance</Link>
-        </li>
-      </ul>
+    <nav className="navigation">
+      <div className="nav-container">
+        <div className="nav-brand">
+          Portfolio Tracker
+        </div>
+        <ul className="nav-links">
+          <li>
+            <Link 
+              to="/" 
+              className={`nav-link ${isActive('/') ? 'active' : ''}`}
+            >
+              Portfolio
+            </Link>
+          </li>
+          <li>
+            <Link 
+              to="/performance" 
+              className={`nav-link ${isActive('/performance') ? 'active' : ''}`}
+            >
+              Performance
+            </Link>
+          </li>
+        </ul>
+      </div>
     </nav>
   );
 }
