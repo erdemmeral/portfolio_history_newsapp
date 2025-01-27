@@ -238,28 +238,28 @@ function PerformanceDashboard() {
       <div className="performance-metrics">
         <div className="metric">
           <h3>Total Trades</h3>
-          <p>{performance.totalTrades}</p>
+          <p>{performance?.totalTrades || 0}</p>
         </div>
         <div className="metric">
           <h3>Win Rate</h3>
-          <p>{(performance.winRate * 100).toFixed(2)}%</p>
+          <p>{performance?.winRate ? (performance.winRate * 100).toFixed(2) : '0.00'}%</p>
         </div>
         <div className="metric">
           <h3>Average Return</h3>
-          <p className={getPerformanceClass(performance.averagePercentageReturn)}>
-            {performance.averagePercentageReturn.toFixed(2)}%
+          <p className={getPerformanceClass(performance?.averagePercentageReturn || 0)}>
+            {performance?.averagePercentageReturn?.toFixed(2) || '0.00'}%
           </p>
         </div>
         <div className="metric">
           <h3>Best Trade</h3>
           <p className="positive">
-            {performance.bestPercentageReturn.toFixed(2)}%
+            {performance?.bestPercentageReturn?.toFixed(2) || '0.00'}%
           </p>
         </div>
         <div className="metric">
           <h3>Worst Trade</h3>
           <p className="negative">
-            {performance.worstPercentageReturn.toFixed(2)}%
+            {performance?.worstPercentageReturn?.toFixed(2) || '0.00'}%
           </p>
         </div>
       </div>
@@ -273,7 +273,6 @@ function PerformanceDashboard() {
               <th>Symbol</th>
               <th>Entry Price</th>
               <th>Exit Price</th>
-              <th>Profit/Loss</th>
               <th>% Return</th>
               <th>Entry Date</th>
               <th>Target Date</th>
@@ -282,32 +281,20 @@ function PerformanceDashboard() {
             </tr>
           </thead>
           <tbody>
-            {performance.closedPositions.map((position, index) => {
-              const holdDuration = position.soldDate 
-                ? Math.ceil(
-                    (new Date(position.soldDate) - new Date(position.entryDate)) / 
-                    (1000 * 60 * 60 * 24)
-                  )
-                : 0;
-
-              return (
-                <tr key={position.symbol}>
-                  <td>{position.symbol}</td>
-                  <td>${position.entryPrice.toFixed(2)}</td>
-                  <td>${position.soldPrice.toFixed(2)}</td>
-                  <td className={position.profitLoss >= 0 ? 'positive' : 'negative'}>
-                    ${Math.abs(position.profitLoss).toFixed(2)}
-                  </td>
-                  <td className={position.percentageChange >= 0 ? 'positive' : 'negative'}>
-                    {position.percentageChange.toFixed(2)}%
-                  </td>
-                  <td>{formatDateTime(position.entryDate)}</td>
-                  <td>{formatDateTime(position.targetDate)}</td>
-                  <td>{formatDateTime(position.soldDate)}</td>
-                  <td>{formatDuration(position.holdDuration)}</td>
-                </tr>
-              );
-            })}
+            {performance?.closedPositions?.map((position) => (
+              <tr key={`${position.symbol}-${position.entryDate}`}>
+                <td>{position.symbol}</td>
+                <td>${position.entryPrice?.toFixed(2) || '0.00'}</td>
+                <td>${position.soldPrice?.toFixed(2) || '0.00'}</td>
+                <td className={position.percentageChange >= 0 ? 'positive' : 'negative'}>
+                  {position.percentageChange?.toFixed(2) || '0.00'}%
+                </td>
+                <td>{formatDateTime(position.entryDate)}</td>
+                <td>{formatDateTime(position.targetDate)}</td>
+                <td>{formatDateTime(position.soldDate)}</td>
+                <td>{formatDuration(position.holdDuration)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
