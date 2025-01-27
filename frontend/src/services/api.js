@@ -5,6 +5,10 @@ const apiService = axios.create({
   timeout: 10000   // Optional: set timeout
 });
 
+// Add a new position
+export const addPosition = (positionData) => 
+  apiService.post('/positions', positionData);
+
 // Get current price for a symbol
 export const getCurrentPrice = async (symbol) => {
   try {
