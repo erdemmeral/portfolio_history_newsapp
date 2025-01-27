@@ -404,23 +404,28 @@ async function startServer() {
 
         // Calculate performance metrics
         const totalTrades = closedPositions.length;
-        const winningTrades = closedPositions.filter(p => p.percentageChange > 0).length;
         
-        // Calculate win rate (as a decimal)
+        // Calculate returns and identify winning trades
+        const returns = closedPositions.map(p => ({
+          percentageChange: p.percentageChange,
+          isWin: p.percentageChange > 0
+        }));
+
+        // Calculate win rate
+        const winningTrades = returns.filter(r => r.isWin).length;
         const winRate = totalTrades > 0 ? winningTrades / totalTrades : 0;
 
-        // Calculate percentage-based returns
-        const returns = closedPositions.map(p => p.percentageChange);
+        // Calculate average return
         const averagePercentageReturn = returns.length > 0 
-          ? returns.reduce((sum, ret) => sum + ret, 0) / returns.length
+          ? returns.reduce((sum, r) => sum + r.percentageChange, 0) / returns.length
           : 0;
 
-        // Find best and worst percentage returns
+        // Find best and worst trades
         const bestPercentageReturn = returns.length > 0 
-          ? Math.max(...returns)
+          ? Math.max(...returns.map(r => r.percentageChange))
           : 0;
         const worstPercentageReturn = returns.length > 0 
-          ? Math.min(...returns)
+          ? Math.min(...returns.map(r => r.percentageChange))
           : 0;
 
         // Format closed positions data
@@ -455,102 +460,55 @@ async function startServer() {
     // Get Performance Time Series
     app.get('/api/performance/timeseries', async (req, res) => {
       try {
-        const { period = 'all' } = req.query;
-        const closedPositions = await Position.find({ status: 'CLOSED' }).sort({ entryDate: 1 });
-        
+        const { startDate, endDate } = req.query;
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Get closed positions within the date range
+        const closedPositions = await Position.find({
+          status: 'CLOSED',
+          entryDate: { $gte: start, $lte: end }
+        }).sort({ entryDate: 1 });
+
         if (closedPositions.length === 0) {
-          return res.status(404).json({ error: 'No closed positions found' });
+          return res.json({ data: [] });
         }
-
-        // Calculate start date based on period
-        const now = new Date();
-        let startDate = new Date(closedPositions[0].entryDate);
-        
-        switch (period) {
-          case '1d':
-            startDate = new Date(now.setDate(now.getDate() - 1));
-            break;
-          case '1w':
-            startDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case '1m':
-            startDate = new Date(now.setMonth(now.getMonth() - 1));
-            break;
-          case '6m':
-            startDate = new Date(now.setMonth(now.getMonth() - 6));
-            break;
-          case '1y':
-            startDate = new Date(now.setFullYear(now.getFullYear() - 1));
-            break;
-          case 'ytd':
-            startDate = new Date(now.getFullYear(), 0, 1); // January 1st of current year
-            break;
-          // 'all' uses the earliest entry date by default
-        }
-
-        // Filter positions based on date range
-        const filteredPositions = closedPositions.filter(
-          position => new Date(position.entryDate) >= startDate
-        );
 
         // Generate daily data points
         const dailyData = [];
-        let currentDate = new Date(startDate);
-        const endDate = new Date();
-
-        while (currentDate <= endDate) {
-          // Get positions that were closed by this date
-          const positionsUpToDate = filteredPositions.filter(
-            position => new Date(position.entryDate) <= currentDate
+        let currentDate = new Date(start);
+        
+        while (currentDate <= end) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          
+          // Calculate cumulative return up to this date
+          const relevantPositions = closedPositions.filter(p => 
+            new Date(p.entryDate).toISOString().split('T')[0] <= dateStr
           );
 
-          if (positionsUpToDate.length > 0) {
-            // Calculate average percentage change (equal weighting)
-            const totalPercentageChange = positionsUpToDate.reduce(
-              (sum, position) => sum + position.percentageChange,
-              0
-            );
-            const avgPercentageChange = totalPercentageChange / positionsUpToDate.length;
+          if (relevantPositions.length > 0) {
+            const totalReturn = relevantPositions.reduce((sum, pos) => sum + pos.percentageChange, 0);
+            const averageReturn = totalReturn / relevantPositions.length;
             
-            // Calculate ETF price (starting from $1.00)
-            const etfPrice = 1 + (avgPercentageChange / 100);
-
             dailyData.push({
-              date: new Date(currentDate).toISOString().split('T')[0],
-              value: etfPrice
+              date: new Date(currentDate),
+              value: 1 + (averageReturn / 100)  // Convert percentage to decimal and add to base value
             });
           } else {
-            // If no positions yet, use starting price
             dailyData.push({
-              date: new Date(currentDate).toISOString().split('T')[0],
-              value: 1.00
+              date: new Date(currentDate),
+              value: 1  // Base value when no positions
             });
           }
 
+          // Move to next day
           currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        console.log('Time Series Response:', {
-          period,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          dataPoints: dailyData.length,
-          finalValue: dailyData[dailyData.length - 1]?.value
-        });
-
-        res.json({
-          period,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          data: dailyData
-        });
-
+        res.json({ data: dailyData });
       } catch (error) {
-        console.error('Error calculating time series performance:', error);
-        res.status(500).json({ 
-          error: 'Failed to calculate time series performance',
-          details: error.message 
-        });
+        console.error('Error calculating time series:', error);
+        res.status(500).json({ error: 'Failed to calculate time series data' });
       }
     });
 
