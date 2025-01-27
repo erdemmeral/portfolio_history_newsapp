@@ -921,6 +921,27 @@ async function startServer() {
       }
     });
 
+    // Get Current Price
+    app.get('/api/prices/:symbol', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+        const quote = await yahooFinance.quote(symbol);
+        
+        if (!quote || !quote.regularMarketPrice) {
+          throw new Error('No price data available');
+        }
+
+        res.json({
+          symbol: symbol,
+          price: quote.regularMarketPrice,
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error('Error fetching current price:', error);
+        res.status(500).json({ error: 'Failed to fetch current price' });
+      }
+    });
+
     // Serve Frontend in Production
     app.use(express.static(path.join(__dirname, '../frontend/build')));
 

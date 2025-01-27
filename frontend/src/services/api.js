@@ -5,6 +5,17 @@ const apiService = axios.create({
   timeout: 10000   // Optional: set timeout
 });
 
+// Get current price for a symbol
+export const getCurrentPrice = async (symbol) => {
+  try {
+    const response = await apiService.get(`/prices/${symbol}`);
+    return response.data.price;
+  } catch (error) {
+    console.error(`Error fetching current price for ${symbol}:`, error);
+    throw error;
+  }
+};
+
 // Get position details by symbol
 export const getPosition = (symbol) => 
   apiService.get(`/positions/${symbol}`);
