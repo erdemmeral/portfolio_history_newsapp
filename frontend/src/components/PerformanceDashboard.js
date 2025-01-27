@@ -32,25 +32,13 @@ function PerformanceDashboard() {
   // Fetch S&P 500 data
   const fetchSP500Data = async (startDate, endDate) => {
     try {
-      const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC`, {
+      const response = await axios.get('/api/sp500', {
         params: {
-          period1: Math.floor(startDate.getTime() / 1000),
-          period2: Math.floor(endDate.getTime() / 1000),
-          interval: '1d'
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
         }
       });
-
-      const timestamps = response.data.chart.result[0].timestamp;
-      const closePrices = response.data.chart.result[0].indicators.quote[0].close;
-      
-      // Calculate normalized values (starting from 1.00)
-      const initialPrice = closePrices[0];
-      const normalizedData = closePrices.map(price => price / initialPrice);
-
-      return timestamps.map((timestamp, index) => ({
-        date: new Date(timestamp * 1000).toISOString().split('T')[0],
-        sp500: normalizedData[index]
-      }));
+      return response.data;
     } catch (error) {
       console.error('Error fetching S&P 500 data:', error);
       return null;

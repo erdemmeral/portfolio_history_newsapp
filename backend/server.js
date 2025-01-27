@@ -27,7 +27,15 @@ const positionSchema = new mongoose.Schema({
   profitLoss: { type: Number, default: 0 },
   percentageChange: { type: Number, default: 0 },
   soldPrice: { type: Number, default: null },
-  soldDate: { type: Date, default: null }
+  soldDate: { type: Date, default: null },
+  sentimentScore: { type: Number, default: null },
+  confidenceScore: { type: Number, default: null },
+  lastUpdateTime: { type: Date, default: Date.now },
+  sellCondition: { 
+    type: String, 
+    enum: ['TARGET_REACHED', 'STOP_LOSS', 'MANUAL', 'PREDICTION_BASED', 'TARGET_DATE_REACHED'],
+    default: null 
+  }
 });
 
 // Pre-save middleware to calculate profit/loss and percentage change
@@ -140,6 +148,37 @@ async function connectDatabase() {
     throw error;
   }
 }
+
+// Function to check and close expired positions
+async function closeExpiredPositions() {
+  try {
+    const currentDate = new Date();
+    
+    // Find all OPEN positions where target date has passed
+    const expiredPositions = await Position.find({
+      status: 'OPEN',
+      targetDate: { $lt: currentDate }
+    });
+
+    // Close each expired position
+    for (const position of expiredPositions) {
+      position.status = 'CLOSED';
+      position.soldDate = position.targetDate; // Use target date as sold date
+      position.soldPrice = position.currentPrice; // Use current price as sold price
+      position.sellCondition = 'TARGET_DATE_REACHED';
+      await position.save();
+      console.log(`Closed expired position for ${position.symbol}`);
+    }
+  } catch (error) {
+    console.error('Error closing expired positions:', error);
+  }
+}
+
+// Add check for expired positions every hour
+setInterval(closeExpiredPositions, 60 * 60 * 1000);
+
+// Also check on server startup
+closeExpiredPositions();
 
 // Startup Connection and Server
 async function startServer() {
@@ -342,7 +381,7 @@ async function startServer() {
     app.post('/api/positions/:symbol/sell', async (req, res) => {
       try {
         const { symbol } = req.params;
-        const { soldPrice, soldDate } = req.body;
+        const { soldPrice, soldDate, sellCondition } = req.body;
 
         if (!soldPrice) {
           return res.status(400).json({
@@ -367,6 +406,8 @@ async function startServer() {
         position.soldPrice = parseFloat(soldPrice);
         position.soldDate = soldDate ? new Date(soldDate) : new Date();
         position.status = 'CLOSED';
+        position.sellCondition = sellCondition || 'MANUAL';
+        position.lastUpdateTime = new Date();
 
         // Save will trigger pre-save middleware to recalculate profitLoss and percentageChange
         await position.save();
@@ -777,6 +818,106 @@ async function startServer() {
           error: 'Test sell failed',
           details: error.message
         });
+      }
+    });
+
+    // Get Position by Symbol
+    app.get('/api/positions/:symbol', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+
+        // Find the most recent position for this symbol
+        const position = await Position.findOne({ 
+          symbol: symbol.toUpperCase() 
+        }).sort({ entryDate: -1 });
+
+        if (!position) {
+          return res.status(404).json({
+            error: `No position found for symbol ${symbol}`
+          });
+        }
+
+        res.json(position);
+
+      } catch (error) {
+        console.error('Error fetching position:', error);
+        res.status(500).json({
+          error: 'Failed to fetch position',
+          details: error.message
+        });
+      }
+    });
+
+    // Update Position Details
+    app.patch('/api/positions/:symbol', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+        const updates = req.body;
+
+        // Find the most recent OPEN position for this symbol
+        const position = await Position.findOne({ 
+          symbol: symbol.toUpperCase(),
+          status: 'OPEN'
+        }).sort({ entryDate: -1 });
+
+        if (!position) {
+          return res.status(404).json({
+            error: `No open position found for symbol ${symbol}`
+          });
+        }
+
+        // Update allowed fields
+        if (updates.targetPrice) position.targetPrice = updates.targetPrice;
+        if (updates.targetDate) position.targetDate = new Date(updates.targetDate);
+        if (updates.sentimentScore !== undefined) position.sentimentScore = updates.sentimentScore;
+        if (updates.confidenceScore !== undefined) position.confidenceScore = updates.confidenceScore;
+        
+        // Update lastUpdateTime
+        position.lastUpdateTime = new Date();
+
+        await position.save();
+
+        res.json({
+          message: 'Position updated successfully',
+          position
+        });
+
+      } catch (error) {
+        console.error('Error updating position:', error);
+        res.status(500).json({
+          error: 'Failed to update position',
+          details: error.message
+        });
+      }
+    });
+
+    // Get S&P 500 Data
+    app.get('/api/sp500', async (req, res) => {
+      try {
+        const { startDate, endDate } = req.query;
+        
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        const queryOptions = {
+          period1: Math.floor(start.getTime() / 1000),
+          period2: Math.floor(end.getTime() / 1000),
+          interval: '1d'
+        };
+
+        const response = await yahooFinance.historical('^GSPC', queryOptions);
+        
+        // Calculate normalized values (starting from 1.00)
+        const initialPrice = response[0]?.close || 1;
+        const normalizedData = response.map(quote => ({
+          date: quote.date.toISOString().split('T')[0],
+          sp500: quote.close / initialPrice
+        }));
+
+        res.json(normalizedData);
+      } catch (error) {
+        console.error('Error fetching S&P 500 data:', error);
+        res.status(500).json({ error: 'Failed to fetch S&P 500 data' });
       }
     });
 
