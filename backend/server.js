@@ -421,12 +421,25 @@ async function startServer() {
           : 0;
 
         // Find best and worst trades
-        const bestPercentageReturn = returns.length > 0 
-          ? Math.max(...returns.map(r => r.percentageChange))
-          : 0;
-        const worstPercentageReturn = returns.length > 0 
-          ? Math.min(...returns.map(r => r.percentageChange))
-          : 0;
+        let bestPercentageReturn = 0;
+        let worstPercentageReturn = 0;
+
+        if (returns.length === 1) {
+          // If there's only one trade, set it as the best trade if positive,
+          // or worst trade if negative
+          const onlyReturn = returns[0].percentageChange;
+          if (onlyReturn >= 0) {
+            bestPercentageReturn = onlyReturn;
+            worstPercentageReturn = 0;
+          } else {
+            bestPercentageReturn = 0;
+            worstPercentageReturn = onlyReturn;
+          }
+        } else if (returns.length > 1) {
+          // If there are multiple trades, find the actual best and worst
+          bestPercentageReturn = Math.max(...returns.map(r => r.percentageChange));
+          worstPercentageReturn = Math.min(...returns.map(r => r.percentageChange));
+        }
 
         // Format closed positions data
         const formattedPositions = closedPositions.map(p => ({
