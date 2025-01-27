@@ -149,37 +149,6 @@ async function connectDatabase() {
   }
 }
 
-// Function to check and close expired positions
-async function closeExpiredPositions() {
-  try {
-    const currentDate = new Date();
-    
-    // Find all OPEN positions where target date has passed
-    const expiredPositions = await Position.find({
-      status: 'OPEN',
-      targetDate: { $lt: currentDate }
-    });
-
-    // Close each expired position
-    for (const position of expiredPositions) {
-      position.status = 'CLOSED';
-      position.soldDate = position.targetDate; // Use target date as sold date
-      position.soldPrice = position.currentPrice; // Use current price as sold price
-      position.sellCondition = 'TARGET_DATE_REACHED';
-      await position.save();
-      console.log(`Closed expired position for ${position.symbol}`);
-    }
-  } catch (error) {
-    console.error('Error closing expired positions:', error);
-  }
-}
-
-// Add check for expired positions every hour
-setInterval(closeExpiredPositions, 60 * 60 * 1000);
-
-// Also check on server startup
-closeExpiredPositions();
-
 // Startup Connection and Server
 async function startServer() {
   try {
@@ -895,26 +864,48 @@ async function startServer() {
     app.get('/api/sp500', async (req, res) => {
       try {
         const { startDate, endDate } = req.query;
-        
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
-        const queryOptions = {
-          period1: Math.floor(start.getTime() / 1000),
-          period2: Math.floor(end.getTime() / 1000),
+
+        const sp500Data = await yahooFinance.historical('^GSPC', {
+          period1: start,
+          period2: end,
           interval: '1d'
-        };
+        });
 
-        const response = await yahooFinance.historical('^GSPC', queryOptions);
-        
-        // Calculate normalized values (starting from 1.00)
-        const initialPrice = response[0]?.close || 1;
-        const normalizedData = response.map(quote => ({
-          date: quote.date.toISOString().split('T')[0],
-          sp500: quote.close / initialPrice
-        }));
+        if (!sp500Data || sp500Data.length === 0) {
+          return res.status(500).json({ error: 'Failed to fetch S&P 500 data' });
+        }
 
-        res.json(normalizedData);
+        // Sort data by date
+        sp500Data.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        // Interpolate missing values
+        const interpolatedData = [];
+        const initialValue = sp500Data[0].close;
+        let currentDate = new Date(sp500Data[0].date);
+        let lastKnownValue = initialValue;
+        let nextDataIndex = 1;
+
+        while (currentDate <= end) {
+          // Find the next available data point
+          while (nextDataIndex < sp500Data.length && 
+                 new Date(sp500Data[nextDataIndex].date) <= currentDate) {
+            lastKnownValue = sp500Data[nextDataIndex].close;
+            nextDataIndex++;
+          }
+
+          // Add the point to interpolated data
+          interpolatedData.push({
+            date: new Date(currentDate),
+            value: lastKnownValue / initialValue  // Normalize the value
+          });
+
+          // Move to next day
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        res.json(interpolatedData);
       } catch (error) {
         console.error('Error fetching S&P 500 data:', error);
         res.status(500).json({ error: 'Failed to fetch S&P 500 data' });

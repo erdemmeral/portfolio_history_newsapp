@@ -174,6 +174,26 @@ function PortfolioList() {
     );
   };
 
+  // Helper function to format date and time
+  const formatDateTime = (date) => {
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'N/A';
+      return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZoneName: 'short'
+      });
+    } catch (error) {
+      return 'N/A';
+    }
+  };
+
   return (
     <div className="portfolio-container">
       <h2 className="portfolio-title">Active Positions</h2>
@@ -237,12 +257,10 @@ function PortfolioList() {
                       : 'N/A'}
                   </td>
                   <td>
-                    {new Date(position.entryDate).toLocaleDateString()}
+                    {formatDateTime(position.entryDate)}
                   </td>
                   <td>
-                    {position.targetDate 
-                      ? new Date(position.targetDate).toLocaleDateString() 
-                      : 'N/A'}
+                    {formatDateTime(position.targetDate)}
                   </td>
                   <td>
                     {position.timeLeft !== undefined

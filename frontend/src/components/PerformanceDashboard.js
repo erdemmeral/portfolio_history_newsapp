@@ -137,12 +137,20 @@ function PerformanceDashboard() {
     return null;
   };
 
-  const formatDate = (date) => {
+  const formatDateTime = (date) => {
     if (!date) return 'N/A';
     try {
       const d = new Date(date);
       if (isNaN(d.getTime())) return 'N/A';
-      return d.toLocaleDateString();
+      return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZoneName: 'short'
+      });
     } catch (error) {
       return 'N/A';
     }
@@ -226,44 +234,33 @@ function PerformanceDashboard() {
         </div>
       </div>
 
-      {/* Overall Statistics */}
-      <div className="performance-summary">
-        <h3>Overall Statistics</h3>
-        <div className="stats-grid">
-          <div className="stat-item">
-            <label>Total Trades</label>
-            <span>{performance.totalTrades}</span>
-          </div>
-          <div className="stat-item">
-            <label>Win Rate</label>
-            <span className={getPerformanceClass(performance.winRate - 50)}>
-              {performance.winRate.toFixed(2)}%
-            </span>
-          </div>
-          <div className="stat-item">
-            <label>Total Profit/Loss</label>
-            <span className={getPerformanceClass(performance.totalProfit)}>
-              ${performance.totalProfit.toFixed(2)}
-            </span>
-          </div>
-          <div className="stat-item">
-            <label>Average Profit per Trade</label>
-            <span className={getPerformanceClass(performance.avgProfit)}>
-              ${performance.avgProfit.toFixed(2)}
-            </span>
-          </div>
-          <div className="stat-item">
-            <label>Largest Win</label>
-            <span className="positive">
-              ${performance.largestWin.toFixed(2)}
-            </span>
-          </div>
-          <div className="stat-item">
-            <label>Largest Loss</label>
-            <span className="negative">
-              ${Math.abs(performance.largestLoss).toFixed(2)}
-            </span>
-          </div>
+      {/* Overall Performance Metrics */}
+      <div className="performance-metrics">
+        <div className="metric">
+          <h3>Total Trades</h3>
+          <p>{performance.totalTrades}</p>
+        </div>
+        <div className="metric">
+          <h3>Win Rate</h3>
+          <p>{(performance.winRate * 100).toFixed(2)}%</p>
+        </div>
+        <div className="metric">
+          <h3>Average Return</h3>
+          <p className={getPerformanceClass(performance.averagePercentageReturn)}>
+            {performance.averagePercentageReturn.toFixed(2)}%
+          </p>
+        </div>
+        <div className="metric">
+          <h3>Best Trade</h3>
+          <p className="positive">
+            {performance.bestPercentageReturn.toFixed(2)}%
+          </p>
+        </div>
+        <div className="metric">
+          <h3>Worst Trade</h3>
+          <p className="negative">
+            {performance.worstPercentageReturn.toFixed(2)}%
+          </p>
         </div>
       </div>
 
@@ -304,9 +301,9 @@ function PerformanceDashboard() {
                   <td className={position.percentageChange >= 0 ? 'positive' : 'negative'}>
                     {position.percentageChange.toFixed(2)}%
                   </td>
-                  <td>{formatDate(position.entryDate)}</td>
-                  <td>{formatDate(position.targetDate)}</td>
-                  <td>{formatDate(position.soldDate)}</td>
+                  <td>{formatDateTime(position.entryDate)}</td>
+                  <td>{formatDateTime(position.targetDate)}</td>
+                  <td>{formatDateTime(position.soldDate)}</td>
                   <td>{formatDuration(position.holdDuration)}</td>
                 </tr>
               );
