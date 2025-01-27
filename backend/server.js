@@ -398,62 +398,57 @@ async function startServer() {
     // Performance Calculation
     app.get('/api/performance', async (req, res) => {
       try {
-        const closedPositions = await Position.find({ status: 'CLOSED' });
-    
+        // Get all closed positions
+        const closedPositions = await Position.find({ status: 'CLOSED' })
+          .sort({ soldDate: -1 });
+
+        // Calculate performance metrics
         const totalTrades = closedPositions.length;
-        const totalProfit = closedPositions.reduce(
-          (sum, position) => sum + position.profitLoss, 
-          0
-        );
-    
-        const winningTrades = closedPositions.filter(
-          position => position.profitLoss > 0
-        );
-    
-        const winRate = totalTrades > 0 
-          ? (winningTrades.length / totalTrades) * 100 
+        const winningTrades = closedPositions.filter(p => p.percentageChange > 0).length;
+        
+        // Calculate win rate (as a decimal)
+        const winRate = totalTrades > 0 ? winningTrades / totalTrades : 0;
+
+        // Calculate percentage-based returns
+        const returns = closedPositions.map(p => p.percentageChange);
+        const averagePercentageReturn = returns.length > 0 
+          ? returns.reduce((sum, ret) => sum + ret, 0) / returns.length
           : 0;
 
-        // Calculate average profit per trade
-        const avgProfit = totalTrades > 0 
-          ? totalProfit / totalTrades 
+        // Find best and worst percentage returns
+        const bestPercentageReturn = returns.length > 0 
+          ? Math.max(...returns)
+          : 0;
+        const worstPercentageReturn = returns.length > 0 
+          ? Math.min(...returns)
           : 0;
 
-        // Calculate largest win and loss
-        const largestWin = Math.max(...closedPositions.map(p => p.profitLoss), 0);
-        const largestLoss = Math.min(...closedPositions.map(p => p.profitLoss), 0);
-    
+        // Format closed positions data
+        const formattedPositions = closedPositions.map(p => ({
+          symbol: p.symbol,
+          entryPrice: p.entryPrice,
+          soldPrice: p.soldPrice,
+          percentageChange: p.percentageChange,
+          entryDate: p.entryDate,
+          targetDate: p.targetDate,
+          soldDate: p.soldDate,
+          holdDuration: p.soldDate 
+            ? Math.ceil((new Date(p.soldDate) - new Date(p.entryDate)) / (1000 * 60 * 60 * 24))
+            : null
+        }));
+
         res.json({
           totalTrades,
-          totalProfit,
           winRate,
-          avgProfit,
-          largestWin,
-          largestLoss,
-          closedPositions: closedPositions.map(p => {
-            // Calculate hold duration only if we have both entry and sold dates
-            const holdDuration = p.soldDate && p.entryDate 
-              ? Math.ceil((new Date(p.soldDate) - new Date(p.entryDate)) / (1000 * 60 * 60 * 24))
-              : null;
-
-            return {
-              symbol: p.symbol,
-              entryPrice: p.entryPrice,
-              soldPrice: p.soldPrice || p.currentPrice,
-              profitLoss: p.profitLoss,
-              percentageChange: p.percentageChange,
-              entryDate: p.entryDate,
-              targetDate: p.targetDate,
-              soldDate: p.soldDate,
-              holdDuration,
-              timeframe: p.timeframe
-            };
-          })
+          averagePercentageReturn,
+          bestPercentageReturn,
+          worstPercentageReturn,
+          closedPositions: formattedPositions
         });
-    
+
       } catch (error) {
         console.error('Error calculating performance:', error);
-        res.status(500).json({ error: 'Performance calculation failed' });
+        res.status(500).json({ error: 'Failed to calculate performance' });
       }
     });
 

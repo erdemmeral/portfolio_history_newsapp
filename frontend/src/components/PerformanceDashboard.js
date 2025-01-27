@@ -48,64 +48,74 @@ function PerformanceDashboard() {
   // Fetch performance metrics and time series data
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        
         // Calculate date range based on selected period
         const endDate = new Date();
         let startDate = new Date();
         
         switch (selectedPeriod) {
           case '1d':
-            startDate.setDate(startDate.getDate() - 1);
+            startDate.setDate(endDate.getDate() - 1);
             break;
           case '1w':
-            startDate.setDate(startDate.getDate() - 7);
+            startDate.setDate(endDate.getDate() - 7);
             break;
           case '1m':
-            startDate.setMonth(startDate.getMonth() - 1);
+            startDate.setMonth(endDate.getMonth() - 1);
             break;
           case '6m':
-            startDate.setMonth(startDate.getMonth() - 6);
+            startDate.setMonth(endDate.getMonth() - 6);
             break;
           case '1y':
-            startDate.setFullYear(startDate.getFullYear() - 1);
+            startDate.setFullYear(endDate.getFullYear() - 1);
             break;
           case 'ytd':
             startDate = new Date(endDate.getFullYear(), 0, 1);
             break;
-          default: // 'all'
-            startDate = new Date(2020, 0, 1); // Set a reasonable default start date
+          case 'all':
+          default:
+            // Get earliest position date or default to 1 year ago
+            const performanceResponse = await axios.get('/api/performance');
+            const positions = performanceResponse.data.closedPositions;
+            if (positions && positions.length > 0) {
+              const dates = positions.map(p => new Date(p.entryDate));
+              startDate = new Date(Math.min(...dates));
+            } else {
+              startDate.setFullYear(endDate.getFullYear() - 1);
+            }
         }
 
-        // Fetch portfolio performance
-        const [perfResponse, timeSeriesResponse] = await Promise.all([
+        // Fetch both portfolio and S&P 500 data
+        const [performanceResponse, timeSeriesResponse, sp500Response] = await Promise.all([
           axios.get('/api/performance'),
-          axios.get(`/api/performance/timeseries?period=${selectedPeriod}`)
+          axios.get('/api/performance/timeseries', {
+            params: { startDate: startDate.toISOString(), endDate: endDate.toISOString() }
+          }),
+          axios.get('/api/sp500', {
+            params: { startDate: startDate.toISOString(), endDate: endDate.toISOString() }
+          })
         ]);
-
-        // Fetch S&P 500 data
-        const sp500DataPoints = await fetchSP500Data(startDate, endDate);
 
         // Merge portfolio and S&P 500 data
         const mergedData = timeSeriesResponse.data.data.map(point => {
-          const sp500Point = sp500DataPoints?.find(p => p.date === point.date);
+          const sp500Point = sp500Response.data.find(
+            sp => new Date(sp.date).toISOString().split('T')[0] === 
+                 new Date(point.date).toISOString().split('T')[0]
+          );
           return {
             ...point,
-            sp500: sp500Point?.sp500 || null
+            sp500: sp500Point ? sp500Point.value : null
           };
         });
 
-        setPerformance(perfResponse.data);
-        setTimeSeriesData({
-          ...timeSeriesResponse.data,
-          data: mergedData
-        });
-        
+        setPerformance(performanceResponse.data);
+        setTimeSeriesData({ ...timeSeriesResponse.data, data: mergedData });
         setLoading(false);
       } catch (error) {
         console.error('Error fetching performance data:', error);
-        setError(error);
+        setError('Failed to load performance data');
         setLoading(false);
       }
     };
