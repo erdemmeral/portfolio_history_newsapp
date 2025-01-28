@@ -100,6 +100,68 @@ const predictionSchema = new mongoose.Schema({
 // Prediction Model
 const Prediction = mongoose.model('Prediction', predictionSchema);
 
+// Cache for S&P 500 data
+let sp500Cache = {
+  lastUpdate: null,
+  data: null
+};
+
+// Function to update S&P 500 data
+async function updateSP500Data() {
+  try {
+    console.log('Updating S&P 500 data...');
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(end.getMonth() - 1); // Get 1 month of data
+
+    const sp500Data = await yahooFinance.historical('^GSPC', {
+      period1: start,
+      period2: end,
+      interval: '1d'
+    });
+
+    if (!sp500Data || sp500Data.length === 0) {
+      throw new Error('No S&P 500 data received');
+    }
+
+    // Sort and process data
+    sp500Data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const initialValue = sp500Data[0].close;
+    
+    const processedData = sp500Data.map(point => ({
+      date: new Date(point.date),
+      value: point.close / initialValue
+    }));
+
+    // Update cache
+    sp500Cache = {
+      lastUpdate: new Date(),
+      data: processedData
+    };
+
+    console.log('S&P 500 data updated successfully');
+  } catch (error) {
+    console.error('Error updating S&P 500 data:', error);
+  }
+}
+
+// Update S&P 500 data every 5 minutes during market hours
+setInterval(async () => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  
+  // Only update during market hours (9:30 AM - 4:00 PM ET)
+  if (hours >= 9 && hours <= 16) {
+    if (hours === 9 && minutes < 30) return; // Wait until market opens
+    if (hours === 16 && minutes > 0) return; // Market is closed
+    await updateSP500Data();
+  }
+}, 5 * 60 * 1000); // 5 minutes
+
+// Initial update when server starts
+updateSP500Data();
+
 // MongoDB Connection Function
 async function connectDatabase() {
   const uri = process.env.MONGODB_URI;
@@ -833,47 +895,44 @@ async function startServer() {
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        const sp500Data = await yahooFinance.historical('^GSPC', {
-          period1: start,
-          period2: end,
-          interval: '1d'
-        });
-
-        if (!sp500Data || sp500Data.length === 0) {
-          return res.status(500).json({ error: 'Failed to fetch S&P 500 data' });
+        // Force update if cache is older than 5 minutes
+        if (!sp500Cache.lastUpdate || 
+            new Date() - sp500Cache.lastUpdate > 5 * 60 * 1000) {
+          await updateSP500Data();
         }
 
-        // Sort data by date
-        sp500Data.sort((a, b) => new Date(a.date) - new Date(b.date));
+        if (!sp500Cache.data) {
+          return res.status(500).json({ error: 'S&P 500 data not available' });
+        }
 
-        // Interpolate missing values
+        // Filter and interpolate data for requested date range
         const interpolatedData = [];
-        const initialValue = sp500Data[0].close;
-        let currentDate = new Date(sp500Data[0].date);
-        let lastKnownValue = initialValue;
-        let nextDataIndex = 1;
+        let currentDate = new Date(start);
+        let lastKnownValue = sp500Cache.data[0]?.value || 1;
 
         while (currentDate <= end) {
-          // Find the next available data point
-          while (nextDataIndex < sp500Data.length && 
-                 new Date(sp500Data[nextDataIndex].date) <= currentDate) {
-            lastKnownValue = sp500Data[nextDataIndex].close;
-            nextDataIndex++;
+          const currentDateStr = currentDate.toISOString().split('T')[0];
+          
+          // Find matching data point
+          const dataPoint = sp500Cache.data.find(point => 
+            point.date.toISOString().split('T')[0] === currentDateStr
+          );
+
+          if (dataPoint) {
+            lastKnownValue = dataPoint.value;
           }
 
-          // Add the point to interpolated data
           interpolatedData.push({
             date: new Date(currentDate),
-            value: lastKnownValue / initialValue  // Normalize the value
+            value: lastKnownValue
           });
 
-          // Move to next day
           currentDate.setDate(currentDate.getDate() + 1);
         }
 
         res.json(interpolatedData);
       } catch (error) {
-        console.error('Error fetching S&P 500 data:', error);
+        console.error('Error serving S&P 500 data:', error);
         res.status(500).json({ error: 'Failed to fetch S&P 500 data' });
       }
     });
