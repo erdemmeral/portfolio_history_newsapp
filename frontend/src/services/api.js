@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiService = axios.create({
-  baseURL: '/api', // Always use relative path
+  baseURL: 'https://portfolio-tracker-rough-dawn-5271.fly.dev/api',
   timeout: 10000   // Optional: set timeout
 });
 
@@ -49,7 +49,7 @@ export const getPerformance = () =>
 
 // Get performance time series
 export const getPerformanceTimeSeries = (startDate, endDate) => 
-  apiService.get('/api/performance/timeseries', {
+  apiService.get('/performance/timeseries', {
     params: { startDate, endDate }
   });
 
