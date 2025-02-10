@@ -429,3 +429,15 @@
   border-color: #fecaca;
   background: #fef2f2;
 }
+
+/* Timeframe Badge */
+.timeframe {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: #e0f2fe;
+  color: #0369a1;
+  text-transform: capitalize;
+}

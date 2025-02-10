@@ -158,8 +158,7 @@ function PortfolioList() {
               <th>% Change</th>
               <th>Target Price</th>
               <th>Starting Date</th>
-              <th>Target Date</th>
-              <th>Time Left</th>
+              <th>Timeframe</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -190,8 +189,11 @@ function PortfolioList() {
                     </td>
                     <td>{formatCurrency(position.take_profit)}</td>
                     <td>{formatDate(position.entry_date)}</td>
-                    <td>{formatDate(position.target_date)}</td>
-                    <td>{position.time_left || 'N/A'}</td>
+                    <td>
+                      <span className="timeframe">
+                        {position.timeframe?.charAt(0).toUpperCase() + position.timeframe?.slice(1) || 'N/A'}
+                      </span>
+                    </td>
                     <td>
                       <span className={`status ${position.status.toLowerCase()}`}>
                         {position.status}
