@@ -17,6 +17,13 @@ function PortfolioList() {
       setError(null);
       const response = await getPortfolio();
       
+      // If we get a 404 with "Portfolio is empty" message, treat it as empty portfolio
+      if (response.error === "No positions found") {
+        setPositions([]);
+        setLoading(false);
+        return;
+      }
+      
       // Filter for only open positions
       const openPositions = response.positions.filter(pos => pos.status === 'open');
       
@@ -40,7 +47,12 @@ function PortfolioList() {
       setPositions(updatedPositions);
     } catch (error) {
       console.error('Error fetching portfolio:', error);
-      setError('Failed to load portfolio data. Please try again later.');
+      // Only set error if it's not the empty portfolio case
+      if (error.response?.status !== 404) {
+        setError('Failed to load portfolio data. Please try again later.');
+      } else {
+        setPositions([]);
+      }
     } finally {
       setLoading(false);
     }
