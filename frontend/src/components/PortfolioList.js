@@ -1,99 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getCurrentPrice, updatePosition } from '../services/api.js';
+import { getPortfolio, getCurrentPrice, updatePosition } from '../services/api';
 import { getPrediction } from '../services/predictionService';
 import './PortfolioList.css';
 
 function PortfolioList() {
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [expandedPosition, setExpandedPosition] = useState(null);
   const [predictions, setPredictions] = useState({});
   const [loadingPredictions, setLoadingPredictions] = useState({});
 
-  // Fetch predictions for a specific symbol
-  const fetchPredictions = async (symbol, targetDate) => {
-    try {
-      setLoadingPredictions(prev => ({ ...prev, [symbol]: true }));
-      
-      // Use the prediction service
-      const predictionData = await getPrediction(symbol, targetDate);
-      
-      setPredictions(prev => ({
-        ...prev,
-        [symbol]: predictionData
-      }));
-    } catch (error) {
-      console.error(`Error fetching predictions for ${symbol}:`, error);
-      setPredictions(prev => ({
-        ...prev,
-        [symbol]: { error: error.message || 'Failed to load predictions' }
-      }));
-    } finally {
-      setLoadingPredictions(prev => ({ ...prev, [symbol]: false }));
-    }
-  };
-
-  // Toggle expanded row
-  const toggleExpanded = (positionId, symbol, targetDate) => {
-    if (expandedPosition === positionId) {
-      setExpandedPosition(null);
-    } else {
-      setExpandedPosition(positionId);
-      if (!predictions[symbol]) {
-        fetchPredictions(symbol, targetDate);
-      }
-    }
-  };
-
-  // Determine CSS class for percentage change
-  const getPercentageChangeClass = (percentageChange) => {
-    if (percentageChange > 0) return 'positive';
-    if (percentageChange < 0) return 'negative';
-    return '';
-  };
-
-  // Calculate Percentage Change Manually
-  const calculatePercentageChange = (entryPrice, currentPrice) => {
-    if (!entryPrice || !currentPrice) return 0;
-    return ((currentPrice - entryPrice) / entryPrice) * 100;
-  };
-
   // Fetch and update positions
   const fetchAndUpdatePositions = async () => {
     try {
-      // Fetch current portfolio
-      const portfolioResponse = await axios.get('https://portfolio-tracker-rough-dawn-5271.fly.dev/api/portfolio');
-      const { positions: portfolioPositions } = portfolioResponse.data;
+      setError(null);
+      const response = await getPortfolio();
       
-      // Filter for only OPEN positions
-      const openPositions = portfolioPositions.filter(position => position.status === 'OPEN');
+      // Filter for only open positions
+      const openPositions = response.positions.filter(pos => pos.status === 'open');
       
-      // Update each position with current price
+      // Update current prices
       const updatedPositions = await Promise.all(
         openPositions.map(async (position) => {
           try {
-            // Fetch current price
-            const priceResponse = await getCurrentPrice(position.symbol);
-            const currentPrice = priceResponse.data.currentPrice;
-            
-            // Update position on backend
-            const updateResponse = await updatePosition(position._id, {
-              currentPrice
-            });
-    
-            return updateResponse.data.position;
+            const currentPrice = await getCurrentPrice(position.ticker);
+            await updatePosition(position.ticker, { current_price: currentPrice });
+            return {
+              ...position,
+              current_price: currentPrice
+            };
           } catch (updateError) {
-            console.error(`Error updating position ${position._id}:`, updateError);
+            console.error(`Error updating position ${position.ticker}:`, updateError);
             return position;
           }
         })
       );
 
       setPositions(updatedPositions);
-      setLoading(false);
     } catch (error) {
-      console.error('Error fetching and updating portfolio:', error);
+      console.error('Error fetching portfolio:', error);
+      setError('Failed to load portfolio data. Please try again later.');
+    } finally {
       setLoading(false);
     }
   };
@@ -101,193 +49,235 @@ function PortfolioList() {
   // Initial fetch and periodic updates
   useEffect(() => {
     fetchAndUpdatePositions();
-
-    // Update every 5 minutes
     const intervalId = setInterval(fetchAndUpdatePositions, 5 * 60 * 1000);
-
     return () => clearInterval(intervalId);
   }, []);
 
-  if (loading) return <div>Loading portfolio...</div>;
-
-  // Render prediction details
-  const renderPredictionDetails = (symbol) => {
-    const prediction = predictions[symbol];
-    const isLoading = loadingPredictions[symbol];
-
-    if (isLoading) {
-      return (
-        <div className="prediction-loading">
-          Loading predictions...
-        </div>
-      );
+  // Fetch predictions for a position
+  const fetchPredictions = async (ticker) => {
+    try {
+      setLoadingPredictions(prev => ({ ...prev, [ticker]: true }));
+      const predictionData = await getPrediction(ticker);
+      setPredictions(prev => ({
+        ...prev,
+        [ticker]: predictionData
+      }));
+    } catch (error) {
+      console.error(`Error fetching predictions for ${ticker}:`, error);
+      setPredictions(prev => ({
+        ...prev,
+        [ticker]: { error: 'Failed to load predictions' }
+      }));
+    } finally {
+      setLoadingPredictions(prev => ({ ...prev, [ticker]: false }));
     }
+  };
 
-    if (!prediction) {
-      return null;
+  // Toggle expanded position
+  const toggleExpanded = (positionId, ticker) => {
+    if (expandedPosition === positionId) {
+      setExpandedPosition(null);
+    } else {
+      setExpandedPosition(positionId);
+      if (!predictions[ticker]) {
+        fetchPredictions(ticker);
+      }
     }
+  };
 
-    if (prediction.error) {
-      return (
-        <div className="prediction-error">
-          {prediction.error}
-        </div>
-      );
-    }
+  // Format currency
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(value);
+  };
 
+  // Format percentage
+  const formatPercentage = (value) => {
+    if (!value && value !== 0) return 'N/A';
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  // Format date
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
     return (
-      <div className="prediction-details">
-        <h4>Model Predictions for {symbol}</h4>
-        <div className="prediction-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Model Name</th>
-                <th>Prediction</th>
-                <th>Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {prediction.modelPredictions.map((model) => (
-                <tr key={model.name}>
-                  <td>{model.name}</td>
-                  <td>${model.price.toFixed(2)}</td>
-                  <td className={getPercentageChangeClass(model.change)}>
-                    {model.change > 0 ? '+' : ''}{model.change.toFixed(2)}%
-                  </td>
-                </tr>
-              ))}
-              <tr className="ensemble-row">
-                <td colSpan="3" className="separator"></td>
-              </tr>
-              <tr className="ensemble-row">
-                <td>ENSEMBLE PREDICTION</td>
-                <td>${prediction.ensemble.price.toFixed(2)}</td>
-                <td className={getPercentageChangeClass(prediction.ensemble.change)}>
-                  {prediction.ensemble.change > 0 ? '+' : ''}{prediction.ensemble.change.toFixed(2)}%
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <div className="portfolio-container">
+        <div className="loading-state">Loading portfolio data...</div>
       </div>
     );
-  };
+  }
 
-  // Helper function to format date and time
-  const formatDateTime = (date) => {
-    if (!date) return 'N/A';
-    try {
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return 'N/A';
-      return d.toLocaleString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZoneName: 'short'
-      });
-    } catch (error) {
-      return 'N/A';
-    }
-  };
+  if (error) {
+    return (
+      <div className="portfolio-container">
+        <div className="error-state">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="portfolio-container">
       <h2 className="portfolio-title">Active Positions</h2>
-      <table className="portfolio-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Symbol</th>
-            <th>Entry Price</th>
-            <th>Current Price</th>
-            <th>Profit/Loss</th>
-            <th>% Change</th>
-            <th>Target Price</th>
-            <th>Starting Date</th>
-            <th>Target Date</th>
-            <th>Time Left</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map(position => {
-            const percentageChange = 
-              position.percentageChange !== undefined 
-                ? position.percentageChange 
-                : calculatePercentageChange(position.entryPrice, position.currentPrice);
-
-            const positionPercentChangeClass = getPercentageChangeClass(percentageChange);
-            const isExpanded = expandedPosition === position._id;
-
-            return (
-              <React.Fragment key={position._id}>
-                <tr className={isExpanded ? 'expanded' : ''}>
-                  <td>
-                    <button 
-                      className="expand-button"
-                      onClick={() => toggleExpanded(position._id, position.symbol, position.targetDate)}
-                    >
-                      {isExpanded ? '−' : '+'}
-                    </button>
-                  </td>
-                  <td>{position.symbol}</td>
-                  <td>${position.entryPrice.toFixed(2)}</td>
-                  <td>
-                    {position.currentPrice 
-                      ? `$${position.currentPrice.toFixed(2)}` 
-                      : 'N/A'}
-                  </td>
-                  <td>
-                    {position.profitLoss 
-                      ? `$${position.profitLoss.toFixed(2)}` 
-                      : '$0.00'}
-                  </td>
-                  <td className={positionPercentChangeClass}>
-                    {percentageChange 
-                      ? `${percentageChange.toFixed(2)}%` 
-                      : '0.00%'}
-                  </td>
-                  <td>
-                    {position.targetPrice 
-                      ? `$${position.targetPrice.toFixed(2)}` 
-                      : 'N/A'}
-                  </td>
-                  <td>
-                    {formatDateTime(position.entryDate)}
-                  </td>
-                  <td>
-                    {formatDateTime(position.targetDate)}
-                  </td>
-                  <td>
-                    {position.timeLeft !== undefined
-                      ? position.timeLeft > 0
-                        ? `${position.timeLeft} days left`
-                        : position.timeLeft === 0
-                          ? 'Due today'
-                          : `${Math.abs(position.timeLeft)} days overdue`
-                      : 'N/A'}
-                  </td>
-                  <td>{position.status}</td>
-                </tr>
-                {isExpanded && (
-                  <tr className="prediction-row">
-                    <td colSpan="11">
-                      {renderPredictionDetails(position.symbol)}
+      
+      {positions.length === 0 ? (
+        <div className="no-positions">
+          No active positions found. Add a position to get started.
+        </div>
+      ) : (
+        <table className="portfolio-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Symbol</th>
+              <th>Entry Price</th>
+              <th>Current Price</th>
+              <th>Profit/Loss</th>
+              <th>% Change</th>
+              <th>Target Price</th>
+              <th>Starting Date</th>
+              <th>Target Date</th>
+              <th>Time Left</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {positions.map((position) => {
+              const isExpanded = expandedPosition === position._id;
+              const pnl = position.pnl || 0;
+              
+              return (
+                <React.Fragment key={position._id}>
+                  <tr className={isExpanded ? 'expanded' : ''}>
+                    <td>
+                      <button 
+                        className="expand-button"
+                        onClick={() => toggleExpanded(position._id, position.ticker)}
+                      >
+                        {isExpanded ? '−' : '+'}
+                      </button>
+                    </td>
+                    <td>{position.ticker}</td>
+                    <td>{formatCurrency(position.entry_price)}</td>
+                    <td>{formatCurrency(position.current_price)}</td>
+                    <td className={pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : ''}>
+                      {formatCurrency(Math.abs(pnl))}
+                    </td>
+                    <td className={pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : ''}>
+                      {formatPercentage(pnl)}
+                    </td>
+                    <td>{formatCurrency(position.take_profit)}</td>
+                    <td>{formatDate(position.entry_date)}</td>
+                    <td>{formatDate(position.target_date)}</td>
+                    <td>{position.time_left || 'N/A'}</td>
+                    <td>
+                      <span className={`status ${position.status.toLowerCase()}`}>
+                        {position.status}
+                      </span>
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-      
-      {positions.length === 0 && (
-        <p className="no-positions">No positions found</p>
+                  {isExpanded && (
+                    <tr className="details-row">
+                      <td colSpan="11">
+                        <div className="position-details">
+                          <div className="details-section">
+                            <h4>Analysis Scores</h4>
+                            <div className="scores-grid">
+                              <div className="score">
+                                <label>Technical</label>
+                                <span>{position.technical_score || 'N/A'}</span>
+                              </div>
+                              <div className="score">
+                                <label>Fundamental</label>
+                                <span>{position.fundamental_score || 'N/A'}</span>
+                              </div>
+                              <div className="score">
+                                <label>News</label>
+                                <span>{position.news_score || 'N/A'}</span>
+                              </div>
+                              <div className="score">
+                                <label>Overall</label>
+                                <span>{position.overall_score || 'N/A'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="details-section">
+                            <h4>Technical Analysis</h4>
+                            <div className="analysis-grid">
+                              <div className="analysis-item">
+                                <label>Trend Direction</label>
+                                <span className={`trend ${position.trend?.direction || 'neutral'}`}>
+                                  {position.trend?.direction || 'Neutral'}
+                                </span>
+                              </div>
+                              <div className="analysis-item">
+                                <label>Trend Strength</label>
+                                <span>{position.trend?.strength || 'N/A'}</span>
+                              </div>
+                              <div className="analysis-item">
+                                <label>Support Levels</label>
+                                <span>
+                                  {position.support_levels?.length > 0
+                                    ? position.support_levels.map(formatCurrency).join(', ')
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="analysis-item">
+                                <label>Resistance Levels</label>
+                                <span>
+                                  {position.resistance_levels?.length > 0
+                                    ? position.resistance_levels.map(formatCurrency).join(', ')
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="details-section">
+                            <h4>Technical Signals</h4>
+                            <div className="signals-grid">
+                              <div className="signal">
+                                <label>RSI</label>
+                                <span>{position.signals?.rsi || 'N/A'}</span>
+                              </div>
+                              <div className="signal">
+                                <label>MACD</label>
+                                <span>{position.signals?.macd?.value || 'N/A'}</span>
+                              </div>
+                              <div className="signal">
+                                <label>Volume Profile</label>
+                                <span>{position.signals?.volume_profile || 'N/A'}</span>
+                              </div>
+                              <div className="signal">
+                                <label>Predicted Move</label>
+                                <span>
+                                  {position.signals?.predicted_move
+                                    ? formatPercentage(position.signals.predicted_move)
+                                    : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   );
