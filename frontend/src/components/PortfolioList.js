@@ -15,17 +15,17 @@ function PortfolioList() {
   const fetchAndUpdatePositions = async () => {
     try {
       setError(null);
-      const response = await getPortfolio();
+      const { data } = await getPortfolio();
       
       // If we get a 404 with "Portfolio is empty" message, treat it as empty portfolio
-      if (response.error === "No positions found") {
+      if (!data || !data.positions) {
         setPositions([]);
         setLoading(false);
         return;
       }
       
       // Filter for only open positions
-      const openPositions = response.positions.filter(pos => pos.status === 'open');
+      const openPositions = data.positions.filter(pos => pos.status === 'open');
       
       // Update current prices
       const updatedPositions = await Promise.all(
@@ -48,7 +48,7 @@ function PortfolioList() {
     } catch (error) {
       console.error('Error fetching portfolio:', error);
       // Only set error if it's not the empty portfolio case
-      if (error.response?.status !== 404) {
+      if (error.response?.data?.error !== "No positions found") {
         setError('Failed to load portfolio data. Please try again later.');
       } else {
         setPositions([]);
