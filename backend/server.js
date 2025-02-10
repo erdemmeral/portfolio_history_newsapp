@@ -11,53 +11,129 @@ const __dirname = path.dirname(__filename);
 
 // Position Schema
 const positionSchema = new mongoose.Schema({
-  symbol: { type: String, required: true },
-  entryPrice: { type: Number, required: true },
-  currentPrice: { type: Number, default: null },
-  targetPrice: { type: Number, required: true },
-  entryDate: { type: Date, default: Date.now, required: true  },
-  targetDate: { type: Date, default: Date.now, required: true  },
-  timeframe: String,
-  timeLeft: { type: Number, default: 0 }, // New field for days left
+  ticker: { 
+    type: String, 
+    required: true 
+  },
+  entry_price: { 
+    type: Number, 
+    required: true 
+  },
+  current_price: { 
+    type: Number, 
+    default: null 
+  },
+  entry_date: { 
+    type: Date, 
+    default: Date.now 
+  },
+  
+  // Scores
+  fundamental_score: { 
+    type: Number, 
+    default: null 
+  },
+  technical_score: { 
+    type: Number, 
+    default: null 
+  },
+  news_score: { 
+    type: Number, 
+    default: null 
+  },
+  overall_score: { 
+    type: Number, 
+    default: null 
+  },
+  
+  // Technical Analysis Data
+  support_levels: [Number],
+  resistance_levels: [Number],
+  stop_loss: { 
+    type: Number, 
+    default: null 
+  },
+  take_profit: { 
+    type: Number, 
+    default: null 
+  },
+  trend: {
+    direction: { 
+      type: String, 
+      enum: ['bullish', 'bearish', 'neutral'],
+      default: 'neutral'
+    },
+    strength: { 
+      type: Number, 
+      min: 0, 
+      max: 100,
+      default: 50 
+    },
+    ma_alignment: { 
+      type: Boolean, 
+      default: false 
+    }
+  },
+  
+  // Position Status
+  pnl: { 
+    type: Number, 
+    default: 0 
+  },
+  timeframe: { 
+    type: String, 
+    enum: ['medium', 'long'],
+    required: true 
+  },
   status: { 
     type: String, 
-    enum: ['OPEN', 'CLOSED', 'PENDING'],
-    default: 'OPEN'
+    enum: ['open', 'closed'],
+    default: 'open' 
   },
-  profitLoss: { type: Number, default: 0 },
-  percentageChange: { type: Number, default: 0 },
-  soldPrice: { type: Number, default: null },
-  soldDate: { type: Date, default: null },
-  sentimentScore: { type: Number, default: null },
-  confidenceScore: { type: Number, default: null },
-  lastUpdateTime: { type: Date, default: Date.now },
-  sellCondition: { 
-    type: String, 
-    enum: ['TARGET_REACHED', 'STOP_LOSS', 'MANUAL', 'PREDICTION_BASED', 'TARGET_DATE_REACHED'],
-    default: null 
+  last_updated: { 
+    type: Date, 
+    default: Date.now 
+  },
+  
+  // Latest Technical Signals
+  signals: {
+    rsi: { 
+      type: Number, 
+      default: null 
+    },
+    macd: {
+      value: { 
+        type: Number, 
+        default: null 
+      },
+      signal: { 
+        type: String, 
+        enum: ['buy', 'sell', 'hold'],
+        default: 'hold' 
+      }
+    },
+    volume_profile: { 
+      type: String, 
+      enum: ['increasing', 'decreasing'],
+      default: null 
+    },
+    predicted_move: { 
+      type: Number, 
+      default: null 
+    }
   }
 });
 
-// Pre-save middleware to calculate profit/loss and percentage change
+// Pre-save middleware to calculate PNL and update last_updated
 positionSchema.pre('save', function(next) {
-  // Calculate time left from current date to target date
-  if (this.targetDate) {
-    const millisecondsPerDay = 24 * 60 * 60 * 1000;
-    const currentDate = new Date();
-    const timeDiff = this.targetDate.getTime() - currentDate.getTime();
-    this.timeLeft = Math.ceil(timeDiff / millisecondsPerDay);
-  } else {
-    this.timeLeft = 0;
+  // Update PNL if we have both entry and current price
+  if (this.entry_price && this.current_price) {
+    this.pnl = ((this.current_price - this.entry_price) / this.entry_price) * 100;
   }
-
-  if (this.entryPrice && this.currentPrice) {
-    this.profitLoss = this.currentPrice - this.entryPrice;
-    this.percentageChange = 
-      ((this.currentPrice - this.entryPrice) / this.entryPrice) * 100;
-  } else {
-    this.profitLoss = 0;
-    this.percentageChange = 0;
-  }
+  
+  // Update last_updated timestamp
+  this.last_updated = new Date();
+  
   next();
 });
 
@@ -260,86 +336,148 @@ async function startServer() {
     // Add Position
     app.post('/api/positions', async (req, res) => {
       try {
-        const { symbol, entryPrice, targetPrice, entryDate, targetDate } = req.body;
-    
+        const {
+          ticker,
+          entry_price,
+          timeframe,
+          technical_score,
+          fundamental_score,
+          news_score,
+          support_levels,
+          resistance_levels,
+          trend,
+          signals
+        } = req.body;
+
         // Validate required fields
-        const requiredFields = ['symbol', 'entryPrice', 'targetPrice', 'entryDate', 'targetDate'];
-        const missingFields = requiredFields.filter(field => !req.body[field]);
-        
-        if (missingFields.length > 0) {
-          return res.status(400).json({ 
-            error: `Missing required fields: ${missingFields.join(', ')}` 
+        if (!ticker || !entry_price || !timeframe) {
+          return res.status(400).json({
+            error: 'Missing required fields: ticker, entry_price, and timeframe are required'
           });
         }
-    
-        // Create new position with required fields
+
+        // Create new position
         const newPosition = new Position({
-          symbol: symbol.toUpperCase(),
-          entryPrice: parseFloat(entryPrice),
-          targetPrice: parseFloat(targetPrice),
-          entryDate: new Date(entryDate),
-          targetDate: new Date(targetDate),
-          status: 'OPEN'
+          ticker: ticker.toUpperCase(),
+          entry_price,
+          timeframe,
+          technical_score,
+          fundamental_score,
+          news_score,
+          support_levels,
+          resistance_levels,
+          trend,
+          signals
         });
-    
+
+        // Calculate overall score if component scores are provided
+        if (technical_score && fundamental_score && news_score) {
+          newPosition.overall_score = (technical_score + fundamental_score + news_score) / 3;
+        }
+
+        // Set stop loss and take profit based on support/resistance if available
+        if (support_levels?.length > 0) {
+          newPosition.stop_loss = Math.max(...support_levels.filter(level => level < entry_price));
+        }
+        if (resistance_levels?.length > 0) {
+          newPosition.take_profit = Math.min(...resistance_levels.filter(level => level > entry_price));
+        }
+
         // Fetch current price from Yahoo Finance
         try {
-          const priceData = await yahooFinance.quote(newPosition.symbol);
-          newPosition.currentPrice = priceData.regularMarketPrice;
+          const quote = await yahooFinance.quote(newPosition.ticker);
+          newPosition.current_price = quote.regularMarketPrice;
         } catch (priceError) {
-          console.error(`Could not fetch current price for ${newPosition.symbol}:`, priceError);
-          newPosition.currentPrice = null;
+          console.error(`Could not fetch current price for ${newPosition.ticker}:`, priceError);
         }
-    
-        // Save position (pre-save middleware will calculate timeLeft, profitLoss, and percentageChange)
+
+        // Save position
         await newPosition.save();
-    
+
         res.status(201).json({
           message: 'Position added successfully',
           position: newPosition
         });
-    
+
       } catch (error) {
         console.error('Error adding position:', error);
-        res.status(500).json({ 
+        res.status(500).json({
           error: 'Failed to add position',
-          details: error.message 
+          details: error.message
         });
       }
     });
 
     // Update Position Price
     // Update Position Price Route
-    app.patch('/api/positions/:id/update-price', async (req, res) => {
+    app.patch('/api/positions/:ticker', async (req, res) => {
       try {
-        const { id } = req.params;
+        const { ticker } = req.params;
+        const updates = req.body;
 
-        // Find position
-        const position = await Position.findById(id);
+        // Find the position
+        const position = await Position.findOne({
+          ticker: ticker.toUpperCase(),
+          status: 'open'
+        });
 
         if (!position) {
-          return res.status(404).json({ error: 'Position not found' });
+          return res.status(404).json({
+            error: `No open position found for ticker ${ticker}`
+          });
         }
 
-        // Fetch current price
-        const priceData = await yahooFinance.quote(position.symbol);
-        
-        // Update current price
-        position.currentPrice = priceData.regularMarketPrice;
+        // Update allowed fields
+        const allowedUpdates = [
+          'current_price',
+          'technical_score',
+          'fundamental_score',
+          'news_score',
+          'support_levels',
+          'resistance_levels',
+          'trend',
+          'signals'
+        ];
 
-        // Save will automatically calculate profitLoss and percentageChange
+        allowedUpdates.forEach(field => {
+          if (updates[field] !== undefined) {
+            position[field] = updates[field];
+          }
+        });
+
+        // Recalculate overall score if component scores are updated
+        if (updates.technical_score || updates.fundamental_score || updates.news_score) {
+          position.overall_score = (
+            position.technical_score +
+            position.fundamental_score +
+            position.news_score
+          ) / 3;
+        }
+
+        // Update stop loss and take profit if levels are updated
+        if (updates.support_levels) {
+          position.stop_loss = Math.max(
+            ...updates.support_levels.filter(level => level < position.entry_price)
+          );
+        }
+        if (updates.resistance_levels) {
+          position.take_profit = Math.min(
+            ...updates.resistance_levels.filter(level => level > position.entry_price)
+          );
+        }
+
         await position.save();
 
         res.json({
-          message: 'Position price updated',
+          message: 'Position updated successfully',
           position
         });
 
       } catch (error) {
-        console.error('Error updating position price:', error);
-        res.status(500).json({ 
-          error: 'Failed to update position price',
-          details: error.message 
+        console.error('Error updating position:', error);
+        res.status(500).json({
+          error: 'Failed to update position',
+          details: error.message
         });
       }
     });
@@ -358,7 +496,7 @@ async function startServer() {
         }
 
         // Retrieve All Positions (both open and closed)
-        const positions = await Position.find().sort({ entryDate: -1 });
+        const positions = await Position.find().sort({ entry_date: -1 });
         
         console.log('Retrieved Positions:', {
           count: positions.length,
@@ -374,12 +512,12 @@ async function startServer() {
         }
 
         // Calculate cumulative results
-        const totalInvestment = positions.reduce((sum, pos) => sum + pos.entryPrice, 0);
-        const currentValue = positions.reduce((sum, pos) => sum + (pos.currentPrice || pos.entryPrice), 0);
-        const totalProfitLoss = positions.reduce((sum, pos) => sum + (pos.profitLoss || 0), 0);
+        const totalInvestment = positions.reduce((sum, pos) => sum + pos.entry_price, 0);
+        const currentValue = positions.reduce((sum, pos) => sum + (pos.current_price || pos.entry_price), 0);
+        const totalProfitLoss = positions.reduce((sum, pos) => sum + (pos.pnl || 0), 0);
         
-        const openPositions = positions.filter(pos => pos.status === 'OPEN');
-        const closedPositions = positions.filter(pos => pos.status === 'CLOSED');
+        const openPositions = positions.filter(pos => pos.status === 'open');
+        const closedPositions = positions.filter(pos => pos.status === 'closed');
         
         const cumulativeResults = {
           totalPositions: positions.length,
@@ -422,9 +560,9 @@ async function startServer() {
 
         // Find the most recent OPEN position for this symbol
         const position = await Position.findOne({ 
-          symbol: symbol.toUpperCase(),
-          status: 'OPEN'
-        }).sort({ entryDate: -1 });
+          ticker: symbol.toUpperCase(),
+          status: 'open'
+        }).sort({ entry_date: -1 });
 
         if (!position) {
           return res.status(404).json({
@@ -433,14 +571,11 @@ async function startServer() {
         }
 
         // Update position with sold price and status
-        position.currentPrice = parseFloat(soldPrice);
-        position.soldPrice = parseFloat(soldPrice);
-        position.soldDate = soldDate ? new Date(soldDate) : new Date();
-        position.status = 'CLOSED';
-        position.sellCondition = sellCondition || 'MANUAL';
-        position.lastUpdateTime = new Date();
+        position.current_price = parseFloat(soldPrice);
+        position.status = 'closed';
+        position.last_updated = new Date();
 
-        // Save will trigger pre-save middleware to recalculate profitLoss and percentageChange
+        // Save will trigger pre-save middleware to recalculate pnl
         await position.save();
 
         res.json({
@@ -461,16 +596,16 @@ async function startServer() {
     app.get('/api/performance', async (req, res) => {
       try {
         // Get all closed positions
-        const closedPositions = await Position.find({ status: 'CLOSED' })
-          .sort({ soldDate: -1 });
+        const closedPositions = await Position.find({ status: 'closed' })
+          .sort({ last_updated: -1 });
 
         // Calculate performance metrics
         const totalTrades = closedPositions.length;
         
         // Calculate returns and identify winning trades
         const returns = closedPositions.map(p => ({
-          percentageChange: p.percentageChange,
-          isWin: p.percentageChange > 0
+          percentageChange: p.pnl,
+          isWin: p.pnl > 0
         }));
 
         // Calculate win rate
@@ -505,16 +640,12 @@ async function startServer() {
 
         // Format closed positions data
         const formattedPositions = closedPositions.map(p => ({
-          symbol: p.symbol,
-          entryPrice: p.entryPrice,
-          soldPrice: p.soldPrice,
-          percentageChange: p.percentageChange,
-          entryDate: p.entryDate,
-          targetDate: p.targetDate,
-          soldDate: p.soldDate,
-          holdDuration: p.soldDate 
-            ? Math.ceil((new Date(p.soldDate) - new Date(p.entryDate)) / (1000 * 60 * 60 * 24))
-            : null
+          ticker: p.ticker,
+          entry_price: p.entry_price,
+          current_price: p.current_price,
+          pnl: p.pnl,
+          entry_date: p.entry_date,
+          last_updated: p.last_updated
         }));
 
         res.json({
@@ -541,9 +672,9 @@ async function startServer() {
 
         // Get closed positions within the date range
         const closedPositions = await Position.find({
-          status: 'CLOSED',
-          entryDate: { $gte: start, $lte: end }
-        }).sort({ entryDate: 1 });
+          status: 'closed',
+          entry_date: { $gte: start, $lte: end }
+        }).sort({ entry_date: 1 });
 
         if (closedPositions.length === 0) {
           return res.json({ data: [] });
@@ -558,11 +689,11 @@ async function startServer() {
           
           // Calculate cumulative return up to this date
           const relevantPositions = closedPositions.filter(p => 
-            new Date(p.entryDate).toISOString().split('T')[0] <= dateStr
+            new Date(p.entry_date).toISOString().split('T')[0] <= dateStr
           );
 
           if (relevantPositions.length > 0) {
-            const totalReturn = relevantPositions.reduce((sum, pos) => sum + pos.percentageChange, 0);
+            const totalReturn = relevantPositions.reduce((sum, pos) => sum + pos.pnl, 0);
             const averageReturn = totalReturn / relevantPositions.length;
             
             dailyData.push({
@@ -781,21 +912,19 @@ async function startServer() {
       try {
         // Create a test position first
         const testPosition = new Position({
-          symbol: 'TEST',
-          entryPrice: 100.00,
-          currentPrice: 100.00,
-          targetPrice: 120.00,
-          entryDate: new Date(),
-          targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          status: 'OPEN'
+          ticker: 'TEST',
+          entry_price: 100.00,
+          current_price: 100.00,
+          entry_date: new Date(),
+          status: 'open'
         });
 
         await testPosition.save();
         console.log('Test position created:', testPosition);
 
         // Now try to sell it
-        testPosition.currentPrice = 110.00; // Simulate a price increase
-        testPosition.status = 'CLOSED';
+        testPosition.current_price = 110.00; // Simulate a price increase
+        testPosition.status = 'closed';
         await testPosition.save();
 
         // Get the updated position
@@ -805,8 +934,8 @@ async function startServer() {
           message: 'Test sell completed',
           originalPosition: testPosition,
           updatedPosition: updatedPosition,
-          profitLoss: updatedPosition.profitLoss,
-          percentageChange: updatedPosition.percentageChange
+          pnl: updatedPosition.pnl,
+          percentageChange: updatedPosition.pnl
         });
 
       } catch (error) {
@@ -825,8 +954,8 @@ async function startServer() {
 
         // Find the most recent position for this symbol
         const position = await Position.findOne({ 
-          symbol: symbol.toUpperCase() 
-        }).sort({ entryDate: -1 });
+          ticker: symbol.toUpperCase() 
+        }).sort({ entry_date: -1 });
 
         if (!position) {
           return res.status(404).json({
@@ -840,49 +969,6 @@ async function startServer() {
         console.error('Error fetching position:', error);
         res.status(500).json({
           error: 'Failed to fetch position',
-          details: error.message
-        });
-      }
-    });
-
-    // Update Position Details
-    app.patch('/api/positions/:symbol', async (req, res) => {
-      try {
-        const { symbol } = req.params;
-        const updates = req.body;
-
-        // Find the most recent OPEN position for this symbol
-        const position = await Position.findOne({ 
-          symbol: symbol.toUpperCase(),
-          status: 'OPEN'
-        }).sort({ entryDate: -1 });
-
-        if (!position) {
-          return res.status(404).json({
-            error: `No open position found for symbol ${symbol}`
-          });
-        }
-
-        // Update allowed fields
-        if (updates.targetPrice) position.targetPrice = updates.targetPrice;
-        if (updates.targetDate) position.targetDate = new Date(updates.targetDate);
-        if (updates.sentimentScore !== undefined) position.sentimentScore = updates.sentimentScore;
-        if (updates.confidenceScore !== undefined) position.confidenceScore = updates.confidenceScore;
-        
-        // Update lastUpdateTime
-        position.lastUpdateTime = new Date();
-
-        await position.save();
-
-        res.json({
-          message: 'Position updated successfully',
-          position
-        });
-
-      } catch (error) {
-        console.error('Error updating position:', error);
-        res.status(500).json({
-          error: 'Failed to update position',
           details: error.message
         });
       }
@@ -948,7 +1034,7 @@ async function startServer() {
         }
 
         res.json({
-          symbol: symbol,
+          ticker: symbol,
           price: quote.regularMarketPrice,
           timestamp: new Date()
         });
