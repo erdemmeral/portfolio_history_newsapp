@@ -9,136 +9,14 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Position Schema
-const positionSchema = new mongoose.Schema({
-  ticker: { 
-    type: String, 
-    required: true 
-  },
-  entry_price: { 
-    type: Number, 
-    required: true 
-  },
-  current_price: { 
-    type: Number, 
-    default: null 
-  },
-  entry_date: { 
-    type: Date, 
-    default: Date.now 
-  },
-  
-  // Scores
-  fundamental_score: { 
-    type: Number, 
-    default: null 
-  },
-  technical_score: { 
-    type: Number, 
-    default: null 
-  },
-  news_score: { 
-    type: Number, 
-    default: null 
-  },
-  overall_score: { 
-    type: Number, 
-    default: null 
-  },
-  
-  // Technical Analysis Data
-  support_levels: [Number],
-  resistance_levels: [Number],
-  stop_loss: { 
-    type: Number, 
-    default: null 
-  },
-  take_profit: { 
-    type: Number, 
-    default: null 
-  },
-  trend: {
-    direction: { 
-      type: String, 
-      enum: ['bullish', 'bearish', 'neutral'],
-      default: 'neutral'
-    },
-    strength: { 
-      type: Number, 
-      min: 0, 
-      max: 100,
-      default: 50 
-    },
-    ma_alignment: { 
-      type: Boolean, 
-      default: false 
-    }
-  },
-  
-  // Position Status
-  pnl: { 
-    type: Number, 
-    default: 0 
-  },
-  timeframe: { 
-    type: String, 
-    enum: ['medium', 'long'],
-    required: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['open', 'closed'],
-    default: 'open' 
-  },
-  last_updated: { 
-    type: Date, 
-    default: Date.now 
-  },
-  
-  // Latest Technical Signals
-  signals: {
-    rsi: { 
-      type: Number, 
-      default: null 
-    },
-    macd: {
-      value: { 
-        type: Number, 
-        default: null 
-      },
-      signal: { 
-        type: String, 
-        enum: ['buy', 'sell', 'hold'],
-        default: 'hold' 
-      }
-    },
-    volume_profile: { 
-      type: String, 
-      enum: ['increasing', 'decreasing'],
-      default: null 
-    },
-    predicted_move: { 
-      type: Number, 
-      default: null 
-    }
-  }
-});
-
-// Pre-save middleware to calculate PNL and update last_updated
-positionSchema.pre('save', function(next) {
-  // Update PNL if we have both entry and current price
-  if (this.entry_price && this.current_price) {
-    this.pnl = ((this.current_price - this.entry_price) / this.entry_price) * 100;
-  }
-  
-  // Update last_updated timestamp
-  this.last_updated = new Date();
-  
-  next();
-});
-
-// Position Model
-const Position = mongoose.model('Position', positionSchema);
+// Import models
+import Position from './models/Position.js';
+import mongoose from 'mongoose';
+import express from 'express';
+import cors from 'cors';
+import yahooFinance from 'yahoo-finance2';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Prediction Schema
 const predictionSchema = new mongoose.Schema({
