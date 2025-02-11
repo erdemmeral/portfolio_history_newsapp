@@ -1,22 +1,17 @@
+// Import required modules
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import yahooFinance from 'yahoo-finance2';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// Import models
+import Position from './models/Position.js';
 
 // ES Module equivalents for __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Import models
-import Position from './models/Position.js';
-import mongoose from 'mongoose';
-import express from 'express';
-import cors from 'cors';
-import yahooFinance from 'yahoo-finance2';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 // Prediction Schema
 const predictionSchema = new mongoose.Schema({
