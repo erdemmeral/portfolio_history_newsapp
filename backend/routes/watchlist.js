@@ -23,19 +23,9 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Get current price from Yahoo Finance
-    let currentPrice = null;
-    try {
-      const quote = await yahooFinance.quote(ticker.toUpperCase());
-      currentPrice = quote.regularMarketPrice;
-    } catch (priceError) {
-      console.error(`Could not fetch current price for ${ticker}:`, priceError);
-    }
-
     // Create new watchlist item
     const watchlistItem = new Watchlist({
       ticker: ticker.toUpperCase(),
-      current_price: currentPrice,
       fundamental_score
     });
 
@@ -43,7 +33,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({
       message: 'Stock added to watchlist successfully',
-      stock: watchlistItem
+      ticker: watchlistItem.ticker
     });
 
   } catch (error) {
@@ -80,7 +70,7 @@ router.get('/', async (req, res) => {
 router.patch('/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const updates = req.body;
+    const { technical_score, news_score, notes } = req.body;
 
     const stock = await Watchlist.findOne({ ticker: ticker.toUpperCase() });
     if (!stock) {
@@ -89,33 +79,24 @@ router.patch('/:ticker', async (req, res) => {
       });
     }
 
-    // Update allowed fields
-    const allowedUpdates = [
-      'technical_score',
-      'news_score',
-      'notes',
-      'current_price'
-    ];
-
-    allowedUpdates.forEach(field => {
-      if (updates[field] !== undefined) {
-        stock[field] = updates[field];
-      }
-    });
-
-    // Update analysis status
-    if (updates.technical_score !== undefined) {
+    // Update fields if provided
+    if (technical_score !== undefined) {
+      stock.technical_score = technical_score;
       stock.analysis_status.technical = true;
     }
-    if (updates.news_score !== undefined) {
+    if (news_score !== undefined) {
+      stock.news_score = news_score;
       stock.analysis_status.news = true;
+    }
+    if (notes !== undefined) {
+      stock.notes = notes;
     }
 
     await stock.save();
 
     res.json({
       message: 'Stock analysis updated successfully',
-      stock
+      ticker: stock.ticker
     });
 
   } catch (error) {
@@ -162,12 +143,12 @@ router.get('/pending/technical', async (req, res) => {
     });
 
     if (stocks.length === 0) {
-      return res.status(404).json({
-        error: 'No stocks pending technical analysis'
-      });
+      return res.json([]);
     }
 
-    res.json(stocks);
+    // Return just the list of tickers
+    const tickers = stocks.map(stock => stock.ticker);
+    res.json(tickers);
   } catch (error) {
     console.error('Error fetching stocks pending technical analysis:', error);
     res.status(500).json({

@@ -347,7 +347,6 @@ async function startServer() {
           entry_price,
           timeframe,
           technical_score,
-          fundamental_score,
           news_score,
           support_levels,
           resistance_levels,
@@ -368,18 +367,12 @@ async function startServer() {
           entry_price,
           timeframe,
           technical_score,
-          fundamental_score,
           news_score,
           support_levels,
           resistance_levels,
           trend,
           signals
         });
-
-        // Calculate overall score if component scores are provided
-        if (technical_score && fundamental_score && news_score) {
-          newPosition.overall_score = (technical_score + fundamental_score + news_score) / 3;
-        }
 
         // Set stop loss and take profit based on support/resistance if available
         if (support_levels?.length > 0) {
@@ -402,7 +395,7 @@ async function startServer() {
 
         res.status(201).json({
           message: 'Position added successfully',
-          position: newPosition
+          ticker: newPosition.ticker
         });
 
       } catch (error) {
@@ -414,14 +407,18 @@ async function startServer() {
       }
     });
 
-    // Update Position Price
-    // Update Position Price Route
+    // Update Position Status
     app.patch('/api/positions/:ticker', async (req, res) => {
       try {
         const { ticker } = req.params;
-        const updates = req.body;
+        const { status } = req.body;
 
-        // Find the position
+        if (status !== 'closed') {
+          return res.status(400).json({
+            error: 'Invalid status value. Only "closed" is allowed.'
+          });
+        }
+
         const position = await Position.findOne({
           ticker: ticker.toUpperCase(),
           status: 'open'
@@ -433,60 +430,25 @@ async function startServer() {
           });
         }
 
-        // Update allowed fields
-        const allowedUpdates = [
-          'current_price',
-          'technical_score',
-          'fundamental_score',
-          'news_score',
-          'support_levels',
-          'resistance_levels',
-          'trend',
-          'signals'
-        ];
-
-        allowedUpdates.forEach(field => {
-          if (updates[field] !== undefined) {
-            position[field] = updates[field];
-          }
-        });
-
-        // Recalculate overall score if component scores are updated
-        if (updates.technical_score || updates.fundamental_score || updates.news_score) {
-          position.overall_score = (
-            position.technical_score +
-            position.fundamental_score +
-            position.news_score
-          ) / 3;
-        }
-
-        // Update stop loss and take profit if levels are updated
-        if (updates.support_levels) {
-          position.stop_loss = Math.max(
-            ...updates.support_levels.filter(level => level < position.entry_price)
-          );
-        }
-        if (updates.resistance_levels) {
-          position.take_profit = Math.min(
-            ...updates.resistance_levels.filter(level => level > position.entry_price)
-          );
-        }
+        position.status = 'closed';
+        position.last_updated = new Date();
 
         await position.save();
 
         res.json({
-          message: 'Position updated successfully',
-          position
+          message: 'Position status updated successfully',
+          ticker: position.ticker
         });
 
       } catch (error) {
-        console.error('Error updating position:', error);
+        console.error('Error updating position status:', error);
         res.status(500).json({
-          error: 'Failed to update position',
+          error: 'Failed to update position status',
           details: error.message
         });
       }
     });
+
     // Get Portfolio
     app.get('/api/portfolio', async (req, res) => {
       try {
