@@ -287,6 +287,9 @@ async function connectDatabase() {
   }
 }
 
+// Import watchlist routes
+import watchlistRoutes from './routes/watchlist.js';
+
 // Startup Connection and Server
 async function startServer() {
   try {
@@ -299,6 +302,9 @@ async function startServer() {
     // Middleware
     app.use(cors());
     app.use(express.json());
+
+    // Routes
+    app.use('/api/watchlist', watchlistRoutes);
 
     // Database Details Route
     app.get('/api/db-details', async (req, res) => {
