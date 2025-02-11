@@ -1,74 +1,107 @@
-const positionSchema = new mongoose.Schema({
-  symbol: { 
-    type: String, 
-    required: [true, 'Symbol is required'],
-    uppercase: true
-  },
-  entryPrice: { 
-    type: Number, 
-    required: [true, 'Entry Price is required']
-  },
-  currentPrice: { 
-    type: Number, 
-    default: null 
-  },
-  targetPrice: { 
-    type: Number, 
-    default: null 
-  },
-  profitLoss: {
-    type: Number,
-    default: 0
-  },
-  percentageChange: {
-    type: Number,
-    default: 0
-  },
-  startDate: { 
-    type: Date, 
-    required: [true, 'Start date is required']
-  },
-  targetDate: { 
-    type: Date,
-    default: null
-  },
-  timeframe: {
-    type: String,
-    enum: ['1h', '1wk', '1mo'],
-    required: [true, 'Timeframe is required']
-  },
-  status: { 
-    type: String, 
-    enum: ['ACTIVE', 'SOLD'],
-    default: 'ACTIVE'
-  },
-  sellPrice: {
-    type: Number,
-    default: null
-  },
-  sellDate: {
-    type: Date,
-    default: null
-  }
-}, {
-  timestamps: true,
-  methods: {
-    calculateProfitLoss() {
-      if (this.currentPrice && this.entryPrice) {
-        this.profitLoss = this.currentPrice - this.entryPrice;
-        this.profitLossPercentage = 
-          ((this.currentPrice - this.entryPrice) / this.entryPrice) * 100;
-      }
-    },
-    calculatePercentageChange() {
-      if (this.entryPrice && this.currentPrice) {
-        this.profitLossPercentage = 
-          ((this.currentPrice - this.entryPrice) / this.entryPrice) * 100;
-      } else {
-        this.profitLossPercentage = 0;
-      }
+import express from 'express';
+import Position from '../models/Position.js';
+import yahooFinance from 'yahoo-finance2';
+
+const router = express.Router();
+
+// Create new position
+router.post('/', async (req, res) => {
+  try {
+    const {
+      ticker,
+      entry_price,
+      timeframe,
+      technical_scores,
+      news_score,
+      support_levels,
+      resistance_levels,
+      stop_loss,
+      trend
+    } = req.body;
+
+    // Validate required fields
+    if (!ticker || !entry_price || !timeframe || !stop_loss) {
+      return res.status(400).json({
+        error: 'Missing required fields: ticker, entry_price, timeframe, and stop_loss are required'
+      });
     }
+
+    // Create new position
+    const newPosition = new Position({
+      ticker: ticker.toUpperCase(),
+      entry_price,
+      timeframe,
+      technical_scores,
+      news_score,
+      support_levels,
+      resistance_levels,
+      stop_loss,
+      trend
+    });
+
+    // Fetch current price from Yahoo Finance
+    try {
+      const quote = await yahooFinance.quote(newPosition.ticker);
+      newPosition.current_price = quote.regularMarketPrice;
+    } catch (priceError) {
+      console.error(`Could not fetch current price for ${newPosition.ticker}:`, priceError);
+    }
+
+    // Save position
+    await newPosition.save();
+
+    res.status(201).json({
+      message: 'Position created successfully',
+      ticker: newPosition.ticker
+    });
+
+  } catch (error) {
+    console.error('Error creating position:', error);
+    res.status(500).json({
+      error: 'Failed to create position',
+      details: error.message
+    });
   }
 });
 
-const Position = mongoose.model('Position', positionSchema);
+// Update position status
+router.patch('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const { status } = req.body;
+
+    if (status !== 'closed') {
+      return res.status(400).json({
+        error: 'Invalid status value. Only "closed" is allowed.'
+      });
+    }
+
+    const position = await Position.findOne({
+      ticker: ticker.toUpperCase(),
+      status: 'open'
+    });
+
+    if (!position) {
+      return res.status(404).json({
+        error: `No open position found for ticker ${ticker}`
+      });
+    }
+
+    position.status = 'closed';
+    await position.save();
+
+    res.json({
+      message: 'Position closed successfully',
+      ticker: position.ticker
+    });
+
+  } catch (error) {
+    console.error('Error closing position:', error);
+    res.status(500).json({
+      error: 'Failed to close position',
+      details: error.message
+    });
+  }
+});
+
+export default router;

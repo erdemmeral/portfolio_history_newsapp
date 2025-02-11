@@ -14,13 +14,36 @@ const watchlistSchema = new mongoose.Schema({
     type: Number, 
     required: true 
   },
-  technical_score: { 
-    type: Number, 
-    default: null 
+  technical_scores: {
+    short: { 
+      type: Number, 
+      default: null 
+    },
+    medium: { 
+      type: Number, 
+      default: null 
+    },
+    long: { 
+      type: Number, 
+      default: null 
+    }
   },
   news_score: { 
     type: Number, 
     default: null 
+  },
+  best_timeframe: {
+    type: String,
+    enum: ['short', 'medium', 'long'],
+    default: null
+  },
+  buy_signal: {
+    type: Boolean,
+    default: false
+  },
+  last_analysis: { 
+    type: Date, 
+    default: Date.now 
   },
   analysis_status: {
     fundamental: { 
@@ -50,9 +73,10 @@ const watchlistSchema = new mongoose.Schema({
   }
 });
 
-// Pre-save middleware to update last_updated
+// Pre-save middleware to update last_updated and last_analysis
 watchlistSchema.pre('save', function(next) {
   this.last_updated = new Date();
+  this.last_analysis = new Date();
   next();
 });
 

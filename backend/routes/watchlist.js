@@ -6,7 +6,7 @@ const router = express.Router();
 // 1. Get all watchlist items
 router.get('/', async (req, res) => {
   try {
-    const watchlist = await Watchlist.find().sort({ added_date: -1 });
+    const watchlist = await Watchlist.find().sort({ last_analysis: -1 });
     
     if (watchlist.length === 0) {
       return res.json([]);
@@ -16,10 +16,15 @@ router.get('/', async (req, res) => {
     const formattedWatchlist = watchlist.map(item => ({
       ticker: item.ticker,
       fundamental_score: item.fundamental_score,
-      technical_score: item.technical_score,
+      technical_scores: {
+        short: item.technical_scores.short,
+        medium: item.technical_scores.medium,
+        long: item.technical_scores.long
+      },
       news_score: item.news_score,
-      notes: item.notes,
-      last_analyzed: item.last_updated
+      last_analysis: item.last_analysis,
+      best_timeframe: item.best_timeframe,
+      buy_signal: item.buy_signal
     }));
 
     res.json(formattedWatchlist);
@@ -48,10 +53,15 @@ router.get('/:ticker', async (req, res) => {
     res.json({
       ticker: item.ticker,
       fundamental_score: item.fundamental_score,
-      technical_score: item.technical_score,
+      technical_scores: {
+        short: item.technical_scores.short,
+        medium: item.technical_scores.medium,
+        long: item.technical_scores.long
+      },
       news_score: item.news_score,
-      notes: item.notes,
-      last_analyzed: item.last_updated
+      last_analysis: item.last_analysis,
+      best_timeframe: item.best_timeframe,
+      buy_signal: item.buy_signal
     });
   } catch (error) {
     console.error('Error fetching watchlist item:', error);
@@ -103,11 +113,18 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 4. Update stock in watchlist
+// 4. Update watchlist item
 router.patch('/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { fundamental_score, technical_score, news_score, notes } = req.body;
+    const {
+      fundamental_score,
+      technical_scores,
+      news_score,
+      best_timeframe,
+      buy_signal,
+      last_analysis
+    } = req.body;
 
     const stock = await Watchlist.findOne({ ticker: ticker.toUpperCase() });
     if (!stock) {
@@ -121,19 +138,37 @@ router.patch('/:ticker', async (req, res) => {
       stock.fundamental_score = fundamental_score;
       stock.analysis_status.fundamental = true;
     }
-    if (technical_score !== undefined) {
-      stock.technical_score = technical_score;
+    
+    if (technical_scores) {
+      if (technical_scores.short !== undefined) {
+        stock.technical_scores.short = technical_scores.short;
+      }
+      if (technical_scores.medium !== undefined) {
+        stock.technical_scores.medium = technical_scores.medium;
+      }
+      if (technical_scores.long !== undefined) {
+        stock.technical_scores.long = technical_scores.long;
+      }
       stock.analysis_status.technical = true;
     }
+    
     if (news_score !== undefined) {
       stock.news_score = news_score;
       stock.analysis_status.news = true;
     }
-    if (notes !== undefined) {
-      stock.notes = notes;
+    
+    if (best_timeframe !== undefined) {
+      stock.best_timeframe = best_timeframe;
+    }
+    
+    if (buy_signal !== undefined) {
+      stock.buy_signal = buy_signal;
+    }
+    
+    if (last_analysis) {
+      stock.last_analysis = new Date(last_analysis);
     }
 
-    stock.last_updated = new Date();
     await stock.save();
 
     res.json({
