@@ -1,21 +1,79 @@
 import express from 'express';
 import Watchlist from '../models/Watchlist.js';
-import yahooFinance from 'yahoo-finance2';
 
 const router = express.Router();
 
-// Add stock to watchlist (from fundamental analysis)
+// 1. Get all watchlist items
+router.get('/', async (req, res) => {
+  try {
+    const watchlist = await Watchlist.find().sort({ added_date: -1 });
+    
+    if (watchlist.length === 0) {
+      return res.json([]);
+    }
+
+    // Format response
+    const formattedWatchlist = watchlist.map(item => ({
+      ticker: item.ticker,
+      fundamental_score: item.fundamental_score,
+      technical_score: item.technical_score,
+      news_score: item.news_score,
+      notes: item.notes,
+      last_analyzed: item.last_updated
+    }));
+
+    res.json(formattedWatchlist);
+  } catch (error) {
+    console.error('Error fetching watchlist:', error);
+    res.status(500).json({
+      error: 'Failed to fetch watchlist',
+      details: error.message
+    });
+  }
+});
+
+// 2. Get single watchlist item
+router.get('/:ticker', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const item = await Watchlist.findOne({ ticker: ticker.toUpperCase() });
+    
+    if (!item) {
+      return res.status(404).json({
+        error: `Stock ${ticker} not found in watchlist`
+      });
+    }
+
+    // Format response
+    res.json({
+      ticker: item.ticker,
+      fundamental_score: item.fundamental_score,
+      technical_score: item.technical_score,
+      news_score: item.news_score,
+      notes: item.notes,
+      last_analyzed: item.last_updated
+    });
+  } catch (error) {
+    console.error('Error fetching watchlist item:', error);
+    res.status(500).json({
+      error: 'Failed to fetch watchlist item',
+      details: error.message
+    });
+  }
+});
+
+// 3. Add stock to watchlist
 router.post('/', async (req, res) => {
   try {
     const { ticker, fundamental_score } = req.body;
 
-    if (!ticker || !fundamental_score) {
+    if (!ticker || fundamental_score === undefined) {
       return res.status(400).json({
         error: 'Missing required fields: ticker and fundamental_score are required'
       });
     }
 
-    // Check if stock already exists in watchlist
+    // Check if stock already exists
     const existingStock = await Watchlist.findOne({ ticker: ticker.toUpperCase() });
     if (existingStock) {
       return res.status(400).json({
@@ -45,32 +103,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all watchlist items
-router.get('/', async (req, res) => {
-  try {
-    const watchlist = await Watchlist.find().sort({ added_date: -1 });
-    
-    if (watchlist.length === 0) {
-      return res.status(404).json({
-        error: 'No stocks found in watchlist'
-      });
-    }
-
-    res.json(watchlist);
-  } catch (error) {
-    console.error('Error fetching watchlist:', error);
-    res.status(500).json({
-      error: 'Failed to fetch watchlist',
-      details: error.message
-    });
-  }
-});
-
-// Update stock analysis (technical or news)
+// 4. Update stock in watchlist
 router.patch('/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
-    const { technical_score, news_score, notes } = req.body;
+    const { fundamental_score, technical_score, news_score, notes } = req.body;
 
     const stock = await Watchlist.findOne({ ticker: ticker.toUpperCase() });
     if (!stock) {
@@ -80,6 +117,10 @@ router.patch('/:ticker', async (req, res) => {
     }
 
     // Update fields if provided
+    if (fundamental_score !== undefined) {
+      stock.fundamental_score = fundamental_score;
+      stock.analysis_status.fundamental = true;
+    }
     if (technical_score !== undefined) {
       stock.technical_score = technical_score;
       stock.analysis_status.technical = true;
@@ -92,6 +133,7 @@ router.patch('/:ticker', async (req, res) => {
       stock.notes = notes;
     }
 
+    stock.last_updated = new Date();
     await stock.save();
 
     res.json({
@@ -108,33 +150,7 @@ router.patch('/:ticker', async (req, res) => {
   }
 });
 
-// Remove stock from watchlist
-router.delete('/:ticker', async (req, res) => {
-  try {
-    const { ticker } = req.params;
-    
-    const result = await Watchlist.findOneAndDelete({ ticker: ticker.toUpperCase() });
-    if (!result) {
-      return res.status(404).json({
-        error: `Stock ${ticker} not found in watchlist`
-      });
-    }
-
-    res.json({
-      message: 'Stock removed from watchlist successfully',
-      stock: result
-    });
-
-  } catch (error) {
-    console.error('Error removing stock from watchlist:', error);
-    res.status(500).json({
-      error: 'Failed to remove stock from watchlist',
-      details: error.message
-    });
-  }
-});
-
-// Get stocks ready for technical analysis (have fundamental but no technical)
+// 5. Get stocks pending technical analysis
 router.get('/pending/technical', async (req, res) => {
   try {
     const stocks = await Watchlist.find({
@@ -142,39 +158,11 @@ router.get('/pending/technical', async (req, res) => {
       'analysis_status.technical': false
     });
 
-    if (stocks.length === 0) {
-      return res.json([]);
-    }
-
     // Return just the list of tickers
     const tickers = stocks.map(stock => stock.ticker);
     res.json(tickers);
   } catch (error) {
     console.error('Error fetching stocks pending technical analysis:', error);
-    res.status(500).json({
-      error: 'Failed to fetch pending stocks',
-      details: error.message
-    });
-  }
-});
-
-// Get stocks ready for news analysis (have technical but no news)
-router.get('/pending/news', async (req, res) => {
-  try {
-    const stocks = await Watchlist.find({
-      'analysis_status.technical': true,
-      'analysis_status.news': false
-    });
-
-    if (stocks.length === 0) {
-      return res.status(404).json({
-        error: 'No stocks pending news analysis'
-      });
-    }
-
-    res.json(stocks);
-  } catch (error) {
-    console.error('Error fetching stocks pending news analysis:', error);
     res.status(500).json({
       error: 'Failed to fetch pending stocks',
       details: error.message
