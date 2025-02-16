@@ -63,23 +63,23 @@ async function updateSP500Data() {
     const start = new Date();
     start.setMonth(end.getMonth() - 1); // Get 1 month of data
 
-    const sp500Data = await yahooFinance.historical('^GSPC', {
+    const result = await yahooFinance.chart('^GSPC', {
       period1: start,
       period2: end,
       interval: '1d'
     });
 
-    if (!sp500Data || sp500Data.length === 0) {
+    if (!result || !result.quotes || result.quotes.length === 0) {
       throw new Error('No S&P 500 data received');
     }
 
     // Sort and process data
-    sp500Data.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const initialValue = sp500Data[0].close;
+    const quotes = result.quotes.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const initialValue = quotes[0].close;
     
-    const processedData = sp500Data.map(point => ({
-      date: new Date(point.date),
-      value: point.close / initialValue
+    const processedData = quotes.map(quote => ({
+      date: new Date(quote.date),
+      value: quote.close / initialValue
     }));
 
     // Update cache

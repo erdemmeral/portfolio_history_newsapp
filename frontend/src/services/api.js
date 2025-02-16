@@ -71,4 +71,8 @@ export const formatSignalsData = (signals) => ({
   predicted_move: signals?.predicted_move || null
 });
 
+// Update all position prices
+export const updateAllPrices = () => 
+  apiService.post('/positions/update-prices');
+
 export default apiService;

@@ -27,24 +27,18 @@ function PortfolioList() {
       // Filter for only open positions
       const openPositions = data.positions.filter(pos => pos.status === 'open');
       
-      // Update current prices
-      const updatedPositions = await Promise.all(
-        openPositions.map(async (position) => {
-          try {
-            const currentPrice = await getCurrentPrice(position.ticker);
-            await updatePosition(position.ticker, { current_price: currentPrice });
-            return {
-              ...position,
-              current_price: currentPrice
-            };
-          } catch (updateError) {
-            console.error(`Error updating position ${position.ticker}:`, updateError);
-            return position;
-          }
-        })
-      );
-
-      setPositions(updatedPositions);
+      // Update all prices at once
+      try {
+        await updateAllPrices();
+        // Fetch updated portfolio after price update
+        const updatedData = await getPortfolio();
+        if (updatedData.data && updatedData.data.positions) {
+          setPositions(updatedData.data.positions.filter(pos => pos.status === 'open'));
+        }
+      } catch (updateError) {
+        console.error('Error updating prices:', updateError);
+        setPositions(openPositions);
+      }
     } catch (error) {
       console.error('Error fetching portfolio:', error);
       // Only set error if it's not the empty portfolio case
@@ -120,6 +114,101 @@ function PortfolioList() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Render expanded details
+  const renderExpandedDetails = (position) => {
+    return (
+      <tr className="details-row">
+        <td colSpan="11">
+          <div className="position-details">
+            <div className="details-section">
+              <h4>Analysis Scores</h4>
+              <div className="scores-grid">
+                <div className="score">
+                  <label>Technical (Short)</label>
+                  <span>{position.technical_scores?.short || 'N/A'}</span>
+                </div>
+                <div className="score">
+                  <label>Technical (Medium)</label>
+                  <span>{position.technical_scores?.medium || 'N/A'}</span>
+                </div>
+                <div className="score">
+                  <label>Technical (Long)</label>
+                  <span>{position.technical_scores?.long || 'N/A'}</span>
+                </div>
+                <div className="score">
+                  <label>News</label>
+                  <span>{position.news_score || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="details-section">
+              <h4>Technical Analysis</h4>
+              <div className="analysis-grid">
+                <div className="analysis-item">
+                  <label>Trend Direction</label>
+                  <span className={`trend ${position.trend?.direction || 'neutral'}`}>
+                    {position.trend?.direction || 'Neutral'}
+                  </span>
+                </div>
+                <div className="analysis-item">
+                  <label>Trend Strength</label>
+                  <span>{position.trend?.strength || 'N/A'}</span>
+                </div>
+                <div className="analysis-item">
+                  <label>Support Levels</label>
+                  <span>
+                    {position.support_levels?.length > 0
+                      ? position.support_levels.map(formatCurrency).join(', ')
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="analysis-item">
+                  <label>Resistance Levels</label>
+                  <span>
+                    {position.resistance_levels?.length > 0
+                      ? position.resistance_levels.map(formatCurrency).join(', ')
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="details-section">
+              <h4>Technical Signals</h4>
+              <div className="signals-grid">
+                <div className="signal">
+                  <label>RSI</label>
+                  <span>{position.signals?.rsi || 'N/A'}</span>
+                </div>
+                <div className="signal">
+                  <label>MACD Value</label>
+                  <span>{position.signals?.macd?.value || 'N/A'}</span>
+                </div>
+                <div className="signal">
+                  <label>MACD Signal</label>
+                  <span>{position.signals?.macd?.signal || 'N/A'}</span>
+                </div>
+                <div className="signal">
+                  <label>Volume Profile</label>
+                  <span>{position.signals?.volume_profile || 'N/A'}</span>
+                </div>
+                <div className="signal">
+                  <label>Predicted Move</label>
+                  <span>
+                    {position.signals?.predicted_move
+                      ? formatPercentage(position.signals.predicted_move)
+                      : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
   };
 
   if (loading) {
@@ -200,93 +289,7 @@ function PortfolioList() {
                       </span>
                     </td>
                   </tr>
-                  {isExpanded && (
-                    <tr className="details-row">
-                      <td colSpan="11">
-                        <div className="position-details">
-                          <div className="details-section">
-                            <h4>Analysis Scores</h4>
-                            <div className="scores-grid">
-                              <div className="score">
-                                <label>Technical</label>
-                                <span>{position.technical_score || 'N/A'}</span>
-                              </div>
-                              <div className="score">
-                                <label>Fundamental</label>
-                                <span>{position.fundamental_score || 'N/A'}</span>
-                              </div>
-                              <div className="score">
-                                <label>News</label>
-                                <span>{position.news_score || 'N/A'}</span>
-                              </div>
-                              <div className="score">
-                                <label>Overall</label>
-                                <span>{position.overall_score || 'N/A'}</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="details-section">
-                            <h4>Technical Analysis</h4>
-                            <div className="analysis-grid">
-                              <div className="analysis-item">
-                                <label>Trend Direction</label>
-                                <span className={`trend ${position.trend?.direction || 'neutral'}`}>
-                                  {position.trend?.direction || 'Neutral'}
-                                </span>
-                              </div>
-                              <div className="analysis-item">
-                                <label>Trend Strength</label>
-                                <span>{position.trend?.strength || 'N/A'}</span>
-                              </div>
-                              <div className="analysis-item">
-                                <label>Support Levels</label>
-                                <span>
-                                  {position.support_levels?.length > 0
-                                    ? position.support_levels.map(formatCurrency).join(', ')
-                                    : 'N/A'}
-                                </span>
-                              </div>
-                              <div className="analysis-item">
-                                <label>Resistance Levels</label>
-                                <span>
-                                  {position.resistance_levels?.length > 0
-                                    ? position.resistance_levels.map(formatCurrency).join(', ')
-                                    : 'N/A'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="details-section">
-                            <h4>Technical Signals</h4>
-                            <div className="signals-grid">
-                              <div className="signal">
-                                <label>RSI</label>
-                                <span>{position.signals?.rsi || 'N/A'}</span>
-                              </div>
-                              <div className="signal">
-                                <label>MACD</label>
-                                <span>{position.signals?.macd?.value || 'N/A'}</span>
-                              </div>
-                              <div className="signal">
-                                <label>Volume Profile</label>
-                                <span>{position.signals?.volume_profile || 'N/A'}</span>
-                              </div>
-                              <div className="signal">
-                                <label>Predicted Move</label>
-                                <span>
-                                  {position.signals?.predicted_move
-                                    ? formatPercentage(position.signals.predicted_move)
-                                    : 'N/A'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                  {isExpanded && renderExpandedDetails(position)}
                 </React.Fragment>
               );
             })}
