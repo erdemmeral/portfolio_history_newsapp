@@ -12,9 +12,10 @@ router.get('/', async (req, res) => {
       return res.json([]);
     }
 
-    // Format response
+    // Format response with all fields
     const formattedWatchlist = watchlist.map(item => ({
       ticker: item.ticker,
+      current_price: item.current_price,
       fundamental_score: item.fundamental_score,
       technical_scores: {
         short: item.technical_scores.short,
@@ -22,9 +23,13 @@ router.get('/', async (req, res) => {
         long: item.technical_scores.long
       },
       news_score: item.news_score,
-      last_analysis: item.last_analysis,
       best_timeframe: item.best_timeframe,
-      buy_signal: item.buy_signal
+      buy_signal: item.buy_signal,
+      analysis_status: item.analysis_status,
+      notes: item.notes,
+      last_analysis: item.last_analysis,
+      added_date: item.added_date,
+      last_updated: item.last_updated
     }));
 
     res.json(formattedWatchlist);
@@ -49,9 +54,10 @@ router.get('/:ticker', async (req, res) => {
       });
     }
 
-    // Format response
+    // Format response with all fields
     res.json({
       ticker: item.ticker,
+      current_price: item.current_price,
       fundamental_score: item.fundamental_score,
       technical_scores: {
         short: item.technical_scores.short,
@@ -59,9 +65,13 @@ router.get('/:ticker', async (req, res) => {
         long: item.technical_scores.long
       },
       news_score: item.news_score,
-      last_analysis: item.last_analysis,
       best_timeframe: item.best_timeframe,
-      buy_signal: item.buy_signal
+      buy_signal: item.buy_signal,
+      analysis_status: item.analysis_status,
+      notes: item.notes,
+      last_analysis: item.last_analysis,
+      added_date: item.added_date,
+      last_updated: item.last_updated
     });
   } catch (error) {
     console.error('Error fetching watchlist item:', error);
